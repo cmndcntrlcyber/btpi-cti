@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  btpi-cti:
+    build:
+      context: ../..
+      dockerfile: packaging/docker/Dockerfile
+    image: cmndcntrlcyber/btpi-cti:latest
+    container_name: btpi-cti
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - btpi_data:/opt/btpi-cti/data
+      - btpi_configs:/opt/btpi-cti/configs
+    ports:
+      - "9000:9000"   # TheHive
+      - "9001:9001"   # Cortex
+      - "8080:8080"   # MISP
+      - "8000:8000"   # GRR
+      - "8001:8001"   # GRR Admin
+      - "443:443"     # Kasm Workspaces
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+    privileged: true
+    networks:
+      - cti-network
+
+networks:
+  cti-network:
+    driver: bridge
+
+volumes:
+  btpi_data:
+  btpi_configs:

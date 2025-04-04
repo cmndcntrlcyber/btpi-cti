@@ -1,0 +1,350 @@
+version: '3.8'
+
+networks:
+  cti-network:
+    driver: bridge
+
+volumes:
+  db_data: # GRR MySQL data
+  client_installers: # GRR client installers
+  client_state: # GRR client state
+  cassandra_data: # For TheHive
+  elasticsearch_data: # For TheHive and Cortex
+  minio_data: # For TheHive
+  misp_data: # For MISP
+  portainer_data: # For Portainer
+  kasm_data: # For Kasm Workspaces
+
+services:
+  # === Portainer for container management ===
+  portainer:
+    image: portainer/portainer-ce:2.21.0
+    container_name: portainer
+    restart: always
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - cti-network
+
+  # === GRR MySQL Database ===
+  grr-db:
+    image: mysql:8.2
+    container_name: grr-db
+    hostname: mysql-host
+    command:
+      - --max_allowed_packet=40M
+      - --log_bin_trust_function_creators=1
+      - --innodb_redo_log_capacity=167772160
+      - --innodb_log_file_size=2500M
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=grr_root_password
+      - MYSQL_DATABASE=grr
+      - MYSQL_USER=grr
+      - MYSQL_PASSWORD=grr_password
+    volumes:
+      - db_data:/var/lib/mysql:rw
+    ports:
+      - "3306:3306"
+    networks:
+      - cti-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  # === GRR Components ===
+  grr-admin-ui:
+    image: ghcr.io/google/grr:latest
+    container_name: grr-admin-ui
+    hostname: admin-ui
+    depends_on:
+      grr-db:
+        condition: service_healthy
+      fleetspeak-admin:
+        condition: service_started
+    volumes:
+      - ./grr_configs:/configs/
+      - client_installers:/client_installers
+    ports:
+      - "8001:8000"
+    networks:
+      - cti-network
+    entrypoint: [
+      "/bin/bash",
+      "-c",
+      "/configs/server/repack_clients.sh && grr_server -component admin_ui -config /configs/server/grr.server.yaml --verbose"
+    ]
+    healthcheck:
+      test: "/configs/healthchecks/grr-admin-ui.sh"
+      timeout: 10s
+      retries: 10
+
+  grr-fleetspeak-frontend:
+    image: ghcr.io/google/grr:latest
+    container_name: grr-fleetspeak-frontend
+    hostname: grr-fleetspeak-frontend
+    depends_on:
+      grr-db:
+        condition: service_healthy
+    volumes:
+      - ./grr_configs:/configs
+    expose:
+      - "11111"
+    restart: always
+    networks:
+      - cti-network
+    command:
+      - -component
+      - frontend
+      - -config
+      - /configs/server/grr.server.yaml
+      - --verbose
+
+  fleetspeak-admin:
+    image: ghcr.io/google/fleetspeak:latest
+    container_name: fleetspeak-admin
+    hostname: fleetspeak-admin
+    depends_on:
+      grr-db:
+        condition: service_healthy
+    networks:
+      - cti-network
+    expose:
+      - "4444"
+    volumes:
+      - ./grr_configs:/configs
+    entrypoint: [
+      "server",
+      "-components_config",
+      "/configs/server/textservices/admin.components.config",
+      "-services_config",
+      "/configs/server/grr_frontend.service",
+      "-alsologtostderr",
+      "-v",
+      "1000"
+    ]
+
+  fleetspeak-frontend:
+    image: ghcr.io/google/fleetspeak:latest
+    container_name: fleetspeak-frontend
+    hostname: fleetspeak-frontend
+    depends_on:
+      grr-db:
+        condition: service_healthy
+    networks:
+      - cti-network
+    expose:
+      - "4443"
+      - "10000"
+    volumes:
+      - ./grr_configs:/configs
+    entrypoint: [
+      "server",
+      "-components_config",
+      "/configs/server/textservices/frontend.components.config",
+      "-services_config",
+      "/configs/server/grr_frontend.service",
+      "-alsologtostderr",
+      "-v",
+      "1000"
+    ]
+
+  grr-worker:
+    image: ghcr.io/google/grr:latest
+    container_name: grr-worker
+    volumes:
+      - ./grr_configs:/configs
+    hostname: grr-worker
+    depends_on:
+      grr-db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - cti-network
+    command:
+      - -component
+      - worker
+      - -config
+      - /configs/server/grr.server.yaml
+      - --verbose
+
+  # === TheHive Components ===
+  cassandra:
+    image: 'cassandra:4'
+    container_name: cassandra
+    hostname: cassandra
+    mem_limit: 1600m
+    ports:
+      - "9042:9042"
+    environment:
+      - MAX_HEAP_SIZE=1024M
+      - HEAP_NEWSIZE=1024M
+      - CASSANDRA_CLUSTER_NAME=TheHive
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    restart: on-failure
+    networks:
+      - cti-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.12
+    container_name: elasticsearch
+    hostname: elasticsearch
+    mem_limit: 1500m
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - cti-network
+
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    hostname: minio
+    mem_limit: 512m
+    command: ["minio", "server", "/data", "--console-address", ":9090"]
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    ports:
+      - "10000:9000"  # Changed from 9000 to avoid conflict with TheHive
+      - "9090:9090"   # Minio console
+    volumes:
+      - minio_data:/data
+    networks:
+      - cti-network
+
+  cortex:
+    image: thehiveproject/cortex:3.1.7
+    container_name: cortex
+    hostname: cortex
+    depends_on:
+      - elasticsearch
+    environment:
+      - job_directory=/tmp/cortex-jobs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/cortex-jobs:/tmp/cortex-jobs
+    ports:
+      - "9001:9001"
+    networks:
+      - cti-network
+
+  thehive:
+    image: strangebee/thehive:5.2
+    container_name: thehive
+    hostname: thehive
+    depends_on:
+      - cassandra
+      - elasticsearch
+      - minio
+      - cortex
+    mem_limit: 1500m
+    ports:
+      - "9000:9000"
+    environment:
+      - JVM_OPTS=-Xms1024M -Xmx1024M
+    command:
+      - --secret
+      - "mySecretForTheHive"
+      - "--cql-hostnames"
+      - "cassandra"
+      - "--index-backend"
+      - "elasticsearch"
+      - "--es-hostnames"
+      - "elasticsearch"
+      - "--s3-endpoint"
+      - "http://minio:9000"
+      - "--s3-access-key"
+      - "minioadmin"
+      - "--s3-secret-key"
+      - "minioadmin"
+      - "--s3-bucket"
+      - "thehive"
+      - "--s3-use-path-access-style"
+      - "--cortex-hostnames"
+      - "cortex"
+      - "--cortex-keys"
+      # Replace with actual Cortex API key once bootstrapped
+      - "CORTEX_API_KEY_HERE"
+    networks:
+      - cti-network
+
+  # === MISP Components ===
+  misp-core:
+    image: ghcr.io/misp/misp-docker/misp-core:latest
+    container_name: misp-core
+    hostname: misp
+    ports:
+      - "8080:80"
+      - "443:443"
+    volumes:
+      - misp_data:/var/www/MISP/app/files
+    environment:
+      - MYSQL_HOST=misp-db
+      - MYSQL_DATABASE=misp
+      - MYSQL_USER=misp
+      - MYSQL_PASSWORD=misp
+    networks:
+      - cti-network
+    depends_on:
+      - misp-db
+
+  misp-modules:
+    image: ghcr.io/misp/misp-docker/misp-modules:latest
+    container_name: misp-modules
+    restart: always
+    environment:
+      - REDIS_BACKEND=redis
+    depends_on:
+      - redis
+      - misp-core
+    networks:
+      - cti-network
+
+  misp-db:
+    image: mysql:8.0
+    container_name: misp-db
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=misp_root_password
+      - MYSQL_DATABASE=misp
+      - MYSQL_USER=misp
+      - MYSQL_PASSWORD=misp
+    volumes:
+      - misp_data:/var/lib/mysql
+    networks:
+      - cti-network
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: always
+    networks:
+      - cti-network
+
+  # === Kasm Workspaces setup ===
+  # This is a placeholder. Due to Kasm's complex setup requirements,
+  # it's better to run the installer script separately as shown in your document
+  # You can uncomment and use this section if you create a custom Kasm image
+  # kasm:
+  #   image: kasmweb/kasm:1.15.0
+  #   container_name: kasm
+  #   volumes:
+  #     - kasm_data:/opt/kasm/data
+  #   ports:
+  #     - "3000:3000"
+  #     - "443:443"
+  #   networks:
+  #     - cti-network

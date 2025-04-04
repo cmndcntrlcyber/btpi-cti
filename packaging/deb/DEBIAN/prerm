@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+# Stop all containers if running
+if command -v docker-compose &> /dev/null && [ -f /opt/btpi-cti/docker-compose.yml ]; then
+    cd /opt/btpi-cti && docker-compose down || true
+fi
+
+# Remove symlinks
+rm -f /usr/local/bin/deploy-cti
+rm -f /usr/local/bin/cti-manage
+rm -f /usr/local/bin/cti-backup
+rm -f /usr/local/bin/cti-restore
+rm -f /usr/local/bin/cti-health-check
+rm -f /usr/local/bin/cti-update
+
+# Display removal message
+echo "BTPI-CTI is being removed."
+echo "Note: Docker volumes and data are not automatically removed."
+echo "To remove all data, run: docker volume rm $(docker volume ls -q | grep cti) (after package removal)"
+
+exit 0

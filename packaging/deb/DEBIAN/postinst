@@ -1,0 +1,48 @@
+#!/bin/bash
+set -e
+
+# Create necessary directories
+mkdir -p /opt/btpi-cti
+mkdir -p /var/log/btpi-cti
+mkdir -p /etc/btpi-cti
+
+# Set permissions
+chmod 755 /opt/btpi-cti
+chmod 755 /var/log/btpi-cti
+chmod 755 /etc/btpi-cti
+
+# Create symlinks for scripts
+ln -sf /opt/btpi-cti/deploy.sh /usr/local/bin/deploy-cti
+ln -sf /opt/btpi-cti/cti-manage.sh /usr/local/bin/cti-manage
+ln -sf /opt/btpi-cti/scripts/backup.sh /usr/local/bin/cti-backup
+ln -sf /opt/btpi-cti/scripts/restore.sh /usr/local/bin/cti-restore
+ln -sf /opt/btpi-cti/scripts/health-check.sh /usr/local/bin/cti-health-check
+ln -sf /opt/btpi-cti/scripts/update.sh /usr/local/bin/cti-update
+
+# Make scripts executable
+chmod +x /opt/btpi-cti/deploy.sh
+chmod +x /opt/btpi-cti/cti-manage.sh
+chmod +x /opt/btpi-cti/scripts/*.sh
+chmod +x /opt/btpi-cti/kasm-scripts/*.sh
+
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    echo "Docker is not installed. Please install Docker before using BTPI-CTI."
+    echo "You can install Docker using the following command:"
+    echo "curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
+fi
+
+# Check if Docker Compose is installed
+if ! command -v docker-compose &> /dev/null; then
+    echo "Docker Compose is not installed. Please install Docker Compose before using BTPI-CTI."
+    echo "You can install Docker Compose using the following command:"
+    echo "curl -L \"https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"
+fi
+
+# Display installation message
+echo "BTPI-CTI has been installed successfully."
+echo "To deploy the CTI infrastructure, run: deploy-cti"
+echo "To manage the CTI infrastructure, run: cti-manage"
+echo "For more information, see the documentation in /opt/btpi-cti/docs/"
+
+exit 0
