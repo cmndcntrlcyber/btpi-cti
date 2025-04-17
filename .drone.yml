@@ -9,6 +9,9 @@ environment:
   CLUSTER_NAME: btpi-cti-cluster
   GCP_SERVICE_ACCOUNT_KEY:
     from_secret: gcp_credentials
+  VAULT_ADDR: http://vault:8200
+  VAULT_TOKEN:
+    from_secret: vault_token
 
 trigger:
   branch:
@@ -18,7 +21,37 @@ trigger:
     - push
     - tag
 
+services:
+  - name: vault
+    image: hashicorp/vault:latest
+    ports:
+      - 8200
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID:
+        from_secret: vault_token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    command:
+      - server
+      - -dev
+      
 steps:
+  - name: vault-setup
+    image: hashicorp/vault:latest
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN:
+        from_secret: vault_token
+    commands:
+      - vault secrets enable -path=secrets kv || echo "KV already enabled"
+      - vault kv put secrets/mysql password="${MYSQL_PASSWORD}" root_password="${MYSQL_ROOT_PASSWORD}"
+      - vault kv put secrets/misp admin_password="${MISP_ADMIN_PASSWORD}" mysql_password="${MISP_MYSQL_PASSWORD}"
+      - vault kv put secrets/cortex api_key="${CORTEX_API_KEY}" 
+      - vault kv put secrets/elastic password="${ELASTIC_PASSWORD}"
+      - vault kv put secrets/thehive secret="${THEHIVE_SECRET}"
+      - echo "Vault configured with necessary secrets"
+    depends_on:
+      - vault
+      
   - name: setup-env
     image: alpine
     commands:
@@ -71,25 +104,24 @@ steps:
       - run-tests
   
   - name: build-docker-images
-    image: docker:dind
+    image: hashicorp/vault:latest
     volumes:
       - name: docker_socket
         path: /var/run/docker.sock
     environment:
-      MYSQL_PASSWORD:
-        from_secret: mysql_password
-      MYSQL_ROOT_PASSWORD: 
-        from_secret: mysql_root_password
-      MISP_ADMIN_PASSWORD:
-        from_secret: misp_admin_password
-      CORTEX_API_KEY:
-        from_secret: cortex_api_key
-      ELASTIC_PASSWORD:
-        from_secret: elastic_password
-      THEHIVE_SECRET:
-        from_secret: thehive_secret
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN:
+        from_secret: vault_token
     commands:
+      - apk add --no-cache docker
       - source .env
+      - "# Get secrets from Vault"
+      - export MYSQL_PASSWORD=$(vault kv get -field=password secrets/mysql)
+      - export MYSQL_ROOT_PASSWORD=$(vault kv get -field=root_password secrets/mysql)
+      - export MISP_ADMIN_PASSWORD=$(vault kv get -field=admin_password secrets/misp)
+      - export CORTEX_API_KEY=$(vault kv get -field=api_key secrets/cortex)
+      - export ELASTIC_PASSWORD=$(vault kv get -field=password secrets/elastic)
+      - export THEHIVE_SECRET=$(vault kv get -field=secret secrets/thehive)
       - docker-compose build
       - cd kasm-images
       - docker build -t $${REGISTRY}/$${PROJECT_ID}/threat-hunting:$${TAG}-$${SHORT_COMMIT} -f threat-hunting.Dockerfile .
@@ -122,17 +154,32 @@ steps:
         - master
   
   - name: deploy-to-cloud-run
-    image: google/cloud-sdk:slim
+    image: hashicorp/vault:latest
     commands:
+      - apk add --no-cache curl python3 py3-pip
+      - pip install hvac
+      - apk add --no-cache google-cloud-sdk
       - source .env
-      - gcloud run deploy btpi-cti \
-        --image=$${REGISTRY}/$${PROJECT_ID}/btpi-cti:$${TAG}-$${SHORT_COMMIT} \
-        --platform=managed \
-        --region=$${REGION} \
-        --allow-unauthenticated \
-        --set-env-vars="MYSQL_PASSWORD=$${MYSQL_PASSWORD},MYSQL_ROOT_PASSWORD=$${MYSQL_ROOT_PASSWORD}" \
-        --set-env-vars="MISP_ADMIN_PASSWORD=$${MISP_ADMIN_PASSWORD},CORTEX_API_KEY=$${CORTEX_API_KEY}" \
-        --set-env-vars="ELASTIC_PASSWORD=$${ELASTIC_PASSWORD},THEHIVE_SECRET=$${THEHIVE_SECRET}"
+      - "# Get secrets from Vault via Python"
+      - >-
+        python3 -c "
+        import hvac, os, subprocess;
+        client = hvac.Client(url=os.environ['VAULT_ADDR'], token=os.environ['VAULT_TOKEN']);
+        secrets = {};
+        secrets.update(client.secrets.kv.read_secret_version(path='mysql')['data']['data']);
+        secrets.update(client.secrets.kv.read_secret_version(path='misp')['data']['data']);
+        secrets.update(client.secrets.kv.read_secret_version(path='cortex')['data']['data']);
+        secrets.update(client.secrets.kv.read_secret_version(path='elastic')['data']['data']);
+        secrets.update(client.secrets.kv.read_secret_version(path='thehive')['data']['data']);
+        env_vars = ','.join([f'{k}={v}' for k,v in secrets.items()]);
+        registry = os.environ['REGISTRY'];
+        project_id = os.environ['PROJECT_ID'];
+        tag = os.environ['TAG'];
+        short_commit = os.environ['SHORT_COMMIT'];
+        region = os.environ['REGION'];
+        cmd = f'gcloud run deploy btpi-cti --image={registry}/{project_id}/btpi-cti:{tag}-{short_commit} --platform=managed --region={region} --allow-unauthenticated --set-env-vars=\"{env_vars}\"';
+        subprocess.run(cmd, shell=True);
+        "
     depends_on:
       - build-docker-images
     when:
@@ -178,45 +225,8 @@ get:
 
 ---
 kind: secret
-name: mysql_password
-get:
-  path: secrets/mysql
-  name: password
-
----
-kind: secret
-name: mysql_root_password
-get:
-  path: secrets/mysql
-  name: root_password
-
----
-kind: secret
-name: misp_admin_password
-get:
-  path: secrets/misp
-  name: admin_password
-
----
-kind: secret
-name: cortex_api_key
-get:
-  path: secrets/cortex
-  name: api_key
-
----
-kind: secret
-name: elastic_password
-get:
-  path: secrets/elastic
-  name: password
-
----
-kind: secret
-name: thehive_secret
-get:
-  path: secrets/thehive
-  name: secret
+name: vault_token
+data: dev-only-token
 
 ---
 kind: secret
