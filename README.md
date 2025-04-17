@@ -1,395 +1,223 @@
-# BTPI-CTI 
-## Blue Team Portable Infrastructure - Cyber Threat Intelligence
-A Cyber Threat Intelligence and Threat Hunting flavor of the Blue Team Portable Infrastructure
+# BTPI-CTI Platform
 
-![BTPI-CTI Logo](/docs/BTPI-CTI-Logo.svg)
+Comprehensive Cyber Threat Intelligence (CTI) platform that integrates multiple security tools for threat analysis, incident response, and intelligence sharing.
 
-## Rapidly Deployable CTI Infrastructure
+## Overview
 
-This project provides a comprehensive, ready-to-deploy Cyber Threat Intelligence (CTI) infrastructure using Docker containers. It integrates multiple industry-standard tools to enable effective threat hunting, incident response, and threat intelligence operations.
+The BTPI-CTI platform provides a containerized environment with the following components:
+
+- **TheHive**: Case management and incident response platform
+- **Cortex**: Security operations orchestration with analyzers and responders
+- **MISP**: Threat intelligence platform for sharing IOCs
+- **GRR Rapid Response**: Remote live forensics tool
+- **Attack Workbench**: MITRE ATT&CK framework implementation
+- **Portainer**: Container management interface
+- **Kasm Workspaces**: Browser isolation and secure desktop environments
+
+## Prerequisites
+
+### Docker and Docker Compose
+
+Docker is required to run the BTPI-CTI platform. If not already installed, follow these steps:
+
+```bash
+# Add Docker's official GPG key
+sudo apt-get update
+sudo apt-get install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+
+# Install Docker packages
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin curl git
+
+# Verify installation
+sudo docker run hello-world
+```
+
+> Note: If you use an Ubuntu derivative distro like Linux Mint, you may need to use `UBUNTU_CODENAME` instead of `VERSION_CODENAME`.
+
+## Installation
+
+### Quick Start
+
+For a quick deployment of the entire stack with all fixes applied:
+
+```bash
+# Clone the repository
+git clone https://github.com/your-organization/btpi-cti.git
+cd btpi-cti
+
+# Run the comprehensive fix script with sudo permissions
+sudo ./scripts/fix-stack-issues.sh
+```
+
+This script will:
+1. Fix TheHive Docker image tag issue
+2. Create all necessary configuration files
+3. Set up missing directories and configurations
+4. Generate secure secrets for all components
+5. Start the entire CTI stack
+
+### Kasm Workspaces Integration
+
+After deploying the main stack, you can integrate all CTI applications with Kasm Workspaces for enhanced security:
+
+```bash
+sudo ./scripts/kasm-integration.sh
+```
+
+This will:
+1. Install Kasm Workspaces if not already installed
+2. Configure Nginx proxies for all CTI applications
+3. Create secure SSL-enabled access to all tools
 
 ## Components
 
-- **GRR Rapid Response**: Live forensics and incident response framework
-- **TheHive**: Security incident response platform
-- **Cortex**: Observable analysis engine
-- **MISP**: Threat intelligence platform
-- **Kasm Workspaces**: Browser isolation and virtual desktop environment
-- **Portainer**: Container management interface
+### Portainer
 
-## Architecture
+Portainer provides a web-based management interface for Docker:
 
-The architecture is designed to be modular and integrates all components within a common Docker network:
+- **Web Interface**: https://localhost:9443
+- **Username**: admin (first-time setup)
+- **Password**: Set during first login
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                        CTI Infrastructure                      │
-│                                                                │
-│  ┌──────────┐        ┌──────────┐        ┌──────────┐          │
-│  │   GRR    │◄──────►│  TheHive │◄──────►│  Cortex  │          │
-│  └──────────┘        └──────────┘        └──────────┘          │
-│        ▲                   ▲                   ▲               │
-│        │                   │                   │               │
-│        │              ┌──────────┐             │               │
-│        └──────────────┤   MISP   ├─────────────┘               │
-│                       └──────────┘                             │
-│                            ▲                                   │
-│  ┌──────────┐              │              ┌──────────┐         │
-│  │  Kasm    │◄─────────────┴──────────────┤Portainer │         │
-│  │Workspaces│                             │          │         │
-│  └──────────┘                             └──────────┘         │
-│                                                                │
-└────────────────────────────────────────────────────────────────┘
-```
+### TheHive
 
-## System Requirements
+TheHive is a scalable, open-source security incident response platform:
 
-- **CPU**: 4+ cores (8+ recommended for production use)
-- **RAM**: 16GB minimum (32GB+ recommended for production use)
-- **Storage**: 100GB+ (SSD preferred for better performance)
-- **Operating System**: Ubuntu 20.04 LTS or newer
-- **Network**: Internet access for initial setup, internal network for deployment
+- **Web Interface**: http://localhost:9000
+- **Default Username**: admin@thehive.local
+- **Default Password**: secret
 
-## Installation Options
+### Cortex
 
-This solution offers three installation methods:
+Cortex is a powerful observable analysis engine that connects to many external services:
 
-### 1. Using the Setup Script
+- **Web Interface**: http://localhost:9001
+- **Default Username**: admin@cortex.local
+- **Default Password**: secret
 
-The setup script will prepare your environment, download necessary components, and configure the infrastructure:
+### MISP
 
-```bash
-# Clone the repository
-git clone https://github.com/cmndcntrlcyber/btpi-cti.git
-cd btpi-cti
+MISP is an open-source threat intelligence platform for sharing, storing, and correlating IOCs:
 
-# Create the required secrets directory
-mkdir -p secrets
+- **Web Interface**: http://localhost:8080
+- **Default Username**: admin@admin.test
+- **Default Password**: admin
 
-# Generate secure passwords
-cat << EOF > secrets/mysql_root_password
-$(openssl rand -base64 16)
-EOF
-cat << EOF > secrets/mysql_password
-$(openssl rand -base64 16)
-EOF
-cat << EOF > secrets/elastic_password
-$(openssl rand -base64 16)
-EOF
-cat << EOF > secrets/minio_root_user
-minioadmin
-EOF
-cat << EOF > secrets/minio_root_password
-$(openssl rand -base64 16)
-EOF
-cat << EOF > secrets/thehive_secret
-$(openssl rand -base64 32)
-EOF
-cat << EOF > secrets/cortex_api_key
-API-KEY-PLACEHOLDER-REPLACE-AFTER-SETUP
-EOF
-cat << EOF > secrets/misp_root_password
-$(openssl rand -base64 16)
-EOF
-cat << EOF > secrets/misp_mysql_password
-$(openssl rand -base64 16)
-EOF
-cat << EOF > secrets/misp_admin_password
-$(openssl rand -base64 16)
-EOF
+### GRR Rapid Response
 
-# Secure the password files
-chmod 600 secrets/*
+GRR is an incident response framework focused on remote live forensics:
 
-# Run the setup script
-chmod +x deploy.sh
-./deploy.sh
+- **Web Interface**: http://localhost:8001
+- **Default Username**: admin
+- **Default Password**: Set during first login
 
-# Manage the infrastructure
-./cti-manage.sh
-```
+### Attack Workbench
 
-### 2. Using Docker Compose Directly
+Attack Workbench provides a collaborative environment for working with ATT&CK data:
 
-If you already have Docker and Docker Compose installed:
+- **Web Interface**: http://localhost:9080
+- **MongoDB**: localhost:27017
+- **REST API**: http://localhost:3500
 
-```bash
-# Clone the repository
-git clone https://github.com/cmndcntrlcyber/btpi-cti.git
-cd btpi-cti
+## Secure Access via Kasm Workspaces
 
-# Create and prepare secrets (see steps above)
+When Kasm Workspaces integration is enabled, you can access all CTI applications through the secure Kasm interface:
 
-# Start the infrastructure
-docker-compose up -d
+- **Kasm Web Interface**: https://localhost
+- **TheHive**: https://thehive.kasm.local
+- **Cortex**: https://cortex.kasm.local
+- **MISP**: https://misp.kasm.local
+- **GRR**: https://grr.kasm.local
+- **Portainer**: https://portainer.kasm.local
 
-# Check status
-docker-compose ps
-```
-
-### 3. Using the DEB Package
-
-On Debian-based systems, you can install the infrastructure as a package:
-
-```bash
-# Download the package
-wget https://github.com/cmndcntrlcyber/btpi-cti/releases/download/v1.0.0/btpi-cti_1.0.0_all.deb
-
-# Install the package
-sudo dpkg -i btpi-cti_1.0.0_all.deb
-sudo apt-get install -f
-
-# Create and prepare secrets directory
-sudo mkdir -p /opt/btpi-cti/secrets
-# Generate all secrets as shown above
-sudo chmod 600 /opt/btpi-cti/secrets/*
-
-# Deploy the infrastructure
-sudo deploy-cti
-```
-
-## Post-Installation Configuration
-
-### TheHive and Cortex Integration
-
-1. Access Cortex at http://localhost:9001
-2. Create an initial administrator account
-3. Navigate to Organizations → Create a new organization (e.g., "CTI")
-4. Create a new user with "read, analyze, orgadmin" roles
-5. Generate an API key for this user
-6. Update the cortex_api_key secret:
-   ```bash
-   echo "YOUR_CORTEX_API_KEY" > secrets/cortex_api_key
-   chmod 600 secrets/cortex_api_key
-   ```
-7. Restart TheHive: `docker-compose restart thehive`
-
-### MISP Configuration
-
-1. Access MISP at http://localhost:8080
-2. Login with the credentials:
-   - Username: admin@admin.test
-   - Password: (value stored in `secrets/misp_admin_password`)
-3. Change the default password immediately
-4. Configure MISP according to your organization's needs
-
-### GRR Configuration
-
-1. Access GRR at http://localhost:8001
-2. Create an administrator account using the setup wizard
-3. Download client installers for deployment to endpoints
-
-### Kasm Workspaces Setup
-
-```bash
-# Run the Kasm installer
-./kasm-builder.sh --build-all
-```
-
-After installation:
-1. Access Kasm at https://localhost:443 or the IP of your server
-2. Log in with the credentials provided during installation
-3. Deploy the custom workspaces using the administration interface
-
-## Custom Workspaces
-
-### Threat Hunting Workspace
-
-Specialized for threat hunting operations with pre-installed tools:
-- Advanced OSINT capabilities
-- Integrated with TheHive, Cortex, and MISP
-- Custom functions for intelligence gathering
-- CyberChef for data analysis
-- Multiple browsers for OSINT work
-
-To build manually:
-```bash
-docker build -t kasm-threat-hunting -f kasm-images/threat-hunting.Dockerfile .
-```
-
-### Malware Analysis Workspace
-
-Secure environment for malware analysis:
-- Ghidra, Radare2, and Cutter
-- Python analysis frameworks
-- Isolated environment for samples
-- Analysis scripts and automation
-- VirusTotal integration
-
-To build manually:
-```bash
-docker build -t kasm-malware-analysis -f kasm-images/malware-analysis.Dockerfile .
-```
-
-### OSINT Investigation Workspace
-
-Optimized for open source intelligence gathering:
-- Multiple specialized search tools
-- People & company research tools
-- Domain/IP investigation capabilities
-- Email and username trackers
-- Social media investigation tools
-
-To build manually:
-```bash
-docker build -t kasm-osint -f kasm-images/osint.Dockerfile .
-```
-
-## Integration Points
-
-### TheHive & Cortex
-- TheHive uses Cortex for advanced observable analysis
-- Cortex analyzers can be configured for additional integrations with VirusTotal, MISP, etc.
-
-### MISP & TheHive
-- Cases in TheHive can be exported to MISP as events
-- MISP events can be imported into TheHive as cases or alerts
-
-### GRR & TheHive
-- Forensic findings from GRR can be manually added to TheHive cases
-- Custom scripts for automating this integration are available in the `integrations` directory
-
-## Security Considerations
-
-- **Change Default Passwords**: Immediately change all default passwords
-- **Network Security**: Deploy behind a VPN or in an isolated network
-- **Access Control**: Implement proper user access controls for each tool
-- **Data Protection**: Encrypt sensitive data at rest
-- **Backup**: Regularly backup the Docker volumes containing your data
-- **Updates**: Keep all components updated to the latest versions
+> Note: Add the appropriate entries to your hosts file to resolve these domains locally.
 
 ## Troubleshooting
 
+If you encounter issues with the stack, you can use the provided fix scripts:
+
+```bash
+# Fix TheHive Docker image tag issue
+sudo ./scripts/thehive-fix.sh
+
+# Fix all stack configuration issues
+sudo ./scripts/fix-stack-issues.sh
+
+# Integrate with Kasm Workspaces
+sudo ./scripts/kasm-integration.sh
+```
+
 ### Common Issues
 
-1. **Container fails to start**:
-   - Check logs: `docker logs [container_name]`
-   - Verify resource availability: `free -m` and `df -h`
-   - Ensure ports are not in use: `netstat -tulpn`
-   - Run the health check script: `./cti-manage.sh health`
+1. **TheHive container fails to start**:
+   - Check if you're using a valid image tag with `docker-compose pull thehive`
+   - Ensure the application.conf file exists
 
-2. **Integration issues between components**:
-   - Check if containers are on the same network: `docker network inspect cti-network`
-   - Verify API keys are correct in the secrets directory
-   - Check the integration-api container status: `docker logs cti-integration-api`
+2. **Nginx configuration errors**:
+   - Verify the configs/nginx/default.conf file exists and is properly formatted
 
-3. **Container healthcheck failures**:
-   - Check container logs: `docker logs [container_name]`
-   - Verify container environment variables and secrets paths
-   - Check resource constraints: `docker stats`
-   - Look for configuration file issues
+3. **GRR client repackaging script not found**:
+   - Ensure grr_configs/server/repack_clients.sh exists and is executable
 
-4. **TheHive/Cortex connectivity issues**:
-   - Verify Elasticsearch is running: `curl http://localhost:9200/_cluster/health`
-   - Check Cassandra status: `docker exec -it cassandra nodetool status`
-   - Verify the cortex_api_key is correctly set in secrets
+## Custom Kasm Workspace Images
 
-5. **MISP issues**:
-   - Check MySQL connectivity: `docker exec -it misp-db mysqladmin ping`
-   - Verify Redis is functioning: `docker exec -it redis redis-cli ping`
-   - Check MISP logs: `docker logs misp-core`
+BTPI-CTI includes specialized Kasm Workspace images for:
 
-6. **Kasm Workspaces issues**:
-   - Verify Docker images were built correctly
-   - Check configuration of browser shortcuts
-   - Verify desktop environment is functioning
-   - Check file permissions on shared resources
+- **OSINT Investigations**: Pre-configured with OSINT tools
+- **Threat Hunting**: Tools for active threat hunting
+- **Malware Analysis**: Isolated environment for malware analysis
 
-### Using the Management Script
+You can build these custom images using:
 
 ```bash
-# Show component status
-./cti-manage.sh status
-
-# View logs for a specific component
-./cti-manage.sh logs thehive
-
-# Run health checks 
-./cti-manage.sh health
-
-# Restart components
-./cti-manage.sh restart
-
-# Create a backup
-./cti-manage.sh backup
-
-# Restore from a backup
-./cti-manage.sh restore [backup_file]
+./kasm-builder.sh osint
+./kasm-builder.sh threat-hunting
+./kasm-builder.sh malware-analysis
 ```
 
-### Support Resources
+## Additional Setup Information
 
-- Each component has its own documentation and community:
-  - GRR: https://grr-doc.readthedocs.io/
-  - TheHive: https://docs.thehive-project.org/
-  - Cortex: https://github.com/TheHive-Project/CortexDocs
-  - MISP: https://www.misp-project.org/documentation/
-  - Kasm: https://kasmweb.com/docs/latest/index.html
+### Kasm Workspaces Full Installation
 
-## Maintenance
-
-### Backup Strategy
-
-Use the management script for regular backups:
+For a direct installation of Kasm Workspaces:
 
 ```bash
-# Create a backup
-./cti-manage.sh backup
-
-# View available backups
-ls -la backups/
-
-# Restore from a backup
-./cti-manage.sh restore backups/cti_backup_20250401_120000.tar.gz
+cd /tmp
+curl -O https://kasm-static-content.s3.amazonaws.com/kasm_release_1.15.0.06fdc8.tar.gz
+curl -O https://kasm-static-content.s3.amazonaws.com/kasm_release_service_images_amd64_1.15.0.06fdc8.tar.gz
+curl -O https://kasm-static-content.s3.amazonaws.com/kasm_release_workspace_images_amd64_1.15.0.06fdc8.tar.gz
+tar -xf kasm_release_1.15.0.06fdc8.tar.gz
+sudo bash kasm_release/install.sh --offline-workspaces /tmp/kasm_release_workspace_images_amd64_1.15.0.06fdc8.tar.gz --offline-service /tmp/kasm_release_service_images_amd64_1.15.0.06fdc8.tar.gz
 ```
 
-### Updating Components
+### Attack Workbench Manual Setup
 
-To update the infrastructure to the latest versions:
+To manually set up Attack Workbench:
 
 ```bash
-# Update all components
-./cti-manage.sh update
+# Clone repositories
+git clone https://github.com/center-for-threat-informed-defense/attack-workbench-frontend.git
+git clone https://github.com/center-for-threat-informed-defense/attack-workbench-rest-api.git
 
-# View current component versions
-./cti-manage.sh config
+# Pull and run Attack Flow
+docker pull ghcr.io/center-for-threat-informed-defense/attack-flow:main
+docker run --rm --name AttackFlowBuilder -p8000:80 ghcr.io/center-for-threat-informed-defense/attack-flow:main
+
+# Start Attack Workbench
+cd attack-workbench-frontend/
+docker compose up -d
 ```
-
-## Extending the Infrastructure
-
-### Adding Custom Tools
-
-1. Create a directory for your tool
-2. Add a Dockerfile and necessary files
-3. Add the service to the docker-compose.yml file
-4. Rebuild and restart: `docker-compose up -d --build`
-
-### Integration with External Systems
-
-- SIEM systems can be integrated with the infrastructure
-- Custom API integrations can be developed using the APIs provided by each component
-- EDR and NDR systems can feed data into TheHive and MISP
-
-## Contributing
-
-Contributions to improve this infrastructure are welcome:
-
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
-Please follow the coding standards and include appropriate tests and documentation.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-This project integrates and builds upon several open-source security tools:
-
-- [GRR Rapid Response](https://github.com/google/grr)
-- [TheHive Project](https://thehive-project.org/)
-- [MISP Project](https://www.misp-project.org/)
-- [Kasm Workspaces](https://www.kasmweb.com/)
-- [Portainer](https://www.portainer.io/)
+This project is licensed under the terms specified in the [LICENSE](LICENSE) file.
