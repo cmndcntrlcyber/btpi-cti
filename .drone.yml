@@ -1,0 +1,226 @@
+kind: pipeline
+type: docker
+name: btpi-cti-pipeline
+
+environment:
+  PROJECT_ID: ${DRONE_REPO_NAME}
+  REGISTRY: gcr.io
+  REGION: us-central1
+  CLUSTER_NAME: btpi-cti-cluster
+  GCP_SERVICE_ACCOUNT_KEY:
+    from_secret: gcp_credentials
+
+trigger:
+  branch:
+    - main
+    - develop
+  event:
+    - push
+    - tag
+
+steps:
+  - name: setup-env
+    image: alpine
+    commands:
+      - echo "TIMESTAMP=$(date +%Y%m%d%H%M%S)" > .env
+      - echo "SHORT_COMMIT=${DRONE_COMMIT_SHA:0:8}" >> .env
+      - echo "TAG=$${DRONE_TAG:-latest}" >> .env
+      - echo "ENV=${DRONE_BRANCH}" >> .env
+      - cat .env
+    
+  - name: load-vars
+    image: alpine
+    commands:
+      - source .env && echo "Loaded environment variables"
+      - env | grep -E "TIMESTAMP|SHORT_COMMIT|TAG|ENV"
+    depends_on:
+      - setup-env
+  
+  - name: validate-compose
+    image: docker/compose:latest
+    volumes:
+      - name: docker_socket
+        path: /var/run/docker.sock
+    commands:
+      - docker-compose config
+    depends_on:
+      - load-vars
+      
+  - name: run-tests
+    image: alpine
+    commands:
+      - cd tests
+      - source ../.env
+      - echo "Running tests in $${ENV} environment"
+      - if [ -f ./component-tests/run.sh ]; then ./component-tests/run.sh; fi
+      - if [ -f ./integration-tests/run.sh ]; then ./integration-tests/run.sh; fi
+    depends_on:
+      - validate-compose
+  
+  - name: authenticate-gcp
+    image: google/cloud-sdk:slim
+    environment:
+      GCP_SERVICE_ACCOUNT_KEY:
+        from_secret: gcp_credentials
+    commands:
+      - echo "$${GCP_SERVICE_ACCOUNT_KEY}" > /tmp/gcp-key.json
+      - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+      - gcloud config set project $${PROJECT_ID}
+      - gcloud auth configure-docker $${REGISTRY} --quiet
+    depends_on:
+      - run-tests
+  
+  - name: build-docker-images
+    image: docker:dind
+    volumes:
+      - name: docker_socket
+        path: /var/run/docker.sock
+    environment:
+      MYSQL_PASSWORD:
+        from_secret: mysql_password
+      MYSQL_ROOT_PASSWORD: 
+        from_secret: mysql_root_password
+      MISP_ADMIN_PASSWORD:
+        from_secret: misp_admin_password
+      CORTEX_API_KEY:
+        from_secret: cortex_api_key
+      ELASTIC_PASSWORD:
+        from_secret: elastic_password
+      THEHIVE_SECRET:
+        from_secret: thehive_secret
+    commands:
+      - source .env
+      - docker-compose build
+      - cd kasm-images
+      - docker build -t $${REGISTRY}/$${PROJECT_ID}/threat-hunting:$${TAG}-$${SHORT_COMMIT} -f threat-hunting.Dockerfile .
+      - docker build -t $${REGISTRY}/$${PROJECT_ID}/malware-analysis:$${TAG}-$${SHORT_COMMIT} -f malware-analysis.Dockerfile .
+      - docker build -t $${REGISTRY}/$${PROJECT_ID}/osint:$${TAG}-$${SHORT_COMMIT} -f osint.Dockerfile .
+      - docker push $${REGISTRY}/$${PROJECT_ID}/threat-hunting:$${TAG}-$${SHORT_COMMIT}
+      - docker push $${REGISTRY}/$${PROJECT_ID}/malware-analysis:$${TAG}-$${SHORT_COMMIT}
+      - docker push $${REGISTRY}/$${PROJECT_ID}/osint:$${TAG}-$${SHORT_COMMIT}
+    depends_on:
+      - authenticate-gcp
+  
+  - name: deploy-to-gke
+    image: google/cloud-sdk:slim
+    environment:
+      KUBECONFIG_DATA:
+        from_secret: kubeconfig
+    commands:
+      - source .env
+      - echo "$${KUBECONFIG_DATA}" > /tmp/kubeconfig
+      - export KUBECONFIG=/tmp/kubeconfig
+      - gcloud container clusters get-credentials $${CLUSTER_NAME} --region $${REGION}
+      - envsubst < kubernetes/deployment.yaml > /tmp/deployment.yaml
+      - kubectl apply -f /tmp/deployment.yaml
+      - kubectl rollout status deployment/btpi-cti
+    depends_on:
+      - build-docker-images
+    when:
+      branch:
+        - main
+        - master
+  
+  - name: deploy-to-cloud-run
+    image: google/cloud-sdk:slim
+    commands:
+      - source .env
+      - gcloud run deploy btpi-cti \
+        --image=$${REGISTRY}/$${PROJECT_ID}/btpi-cti:$${TAG}-$${SHORT_COMMIT} \
+        --platform=managed \
+        --region=$${REGION} \
+        --allow-unauthenticated \
+        --set-env-vars="MYSQL_PASSWORD=$${MYSQL_PASSWORD},MYSQL_ROOT_PASSWORD=$${MYSQL_ROOT_PASSWORD}" \
+        --set-env-vars="MISP_ADMIN_PASSWORD=$${MISP_ADMIN_PASSWORD},CORTEX_API_KEY=$${CORTEX_API_KEY}" \
+        --set-env-vars="ELASTIC_PASSWORD=$${ELASTIC_PASSWORD},THEHIVE_SECRET=$${THEHIVE_SECRET}"
+    depends_on:
+      - build-docker-images
+    when:
+      branch:
+        - develop
+  
+  - name: notify-slack
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: slack_webhook
+      channel: deployments
+      template: >
+        *{{#success build.status}}✅ Build Succeeded{{else}}❌ Build Failed{{/success}}*
+        *BTPI-CTI Deployment*
+        *Branch:* ${DRONE_BRANCH}
+        *Commit:* ${DRONE_COMMIT_LINK}
+        *Author:* ${DRONE_COMMIT_AUTHOR}
+        *Environment:* $${ENV}
+        *Build:* ${DRONE_BUILD_LINK}
+    depends_on:
+      - deploy-to-gke
+      - deploy-to-cloud-run
+
+volumes:
+  - name: docker_socket
+    host:
+      path: /var/run/docker.sock
+
+---
+kind: secret
+name: gcp_credentials
+get:
+  path: gcp/service-account-key
+  name: credentials
+
+---
+kind: secret
+name: kubeconfig
+get:
+  path: kubernetes/config
+  name: kubeconfig
+
+---
+kind: secret
+name: mysql_password
+get:
+  path: secrets/mysql
+  name: password
+
+---
+kind: secret
+name: mysql_root_password
+get:
+  path: secrets/mysql
+  name: root_password
+
+---
+kind: secret
+name: misp_admin_password
+get:
+  path: secrets/misp
+  name: admin_password
+
+---
+kind: secret
+name: cortex_api_key
+get:
+  path: secrets/cortex
+  name: api_key
+
+---
+kind: secret
+name: elastic_password
+get:
+  path: secrets/elastic
+  name: password
+
+---
+kind: secret
+name: thehive_secret
+get:
+  path: secrets/thehive
+  name: secret
+
+---
+kind: secret
+name: slack_webhook
+get:
+  path: notifications/slack
+  name: webhook
