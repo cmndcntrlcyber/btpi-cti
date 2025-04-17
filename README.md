@@ -2,6 +2,8 @@
 ## Blue Team Portable Infrastructure - Cyber Threat Intelligence
 A Cyber Threat Intelligence and Threat Hunting flavor of the Blue Team Portable Infrastructure
 
+![]('../docs/BTPI-CTI.png')
+
 ## Rapidly Deployable CTI Infrastructure
 
 This project provides a comprehensive, ready-to-deploy Cyber Threat Intelligence (CTI) infrastructure using Docker containers. It integrates multiple industry-standard tools to enable effective threat hunting, incident response, and threat intelligence operations.
