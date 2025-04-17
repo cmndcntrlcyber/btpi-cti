@@ -27,8 +27,8 @@ services:
     container_name: portainer
     restart: unless-stopped
     ports:
-      - "8000:8000"
-      - "9000:9000" 
+      - "9000:8000"  # Changed from 8000:8000 to avoid conflict with Attack Flow
+      - "9010:9000"  # Changed from 9000:9000 to avoid conflict with TheHive
       - "9443:9443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

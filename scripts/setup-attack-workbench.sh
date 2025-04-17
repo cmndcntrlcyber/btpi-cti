@@ -7,10 +7,10 @@
 set -e
 
 WORKBENCH_DIR="/opt/btpi-cti/attack-workbench"
-MONGO_PORT=27017
+MONGO_PORT=27018   # Changed from 27017 to avoid conflict with other MongoDB instances
 ATTACK_FRONTEND_PORT=9080
 ATTACK_API_PORT=3500
-ATTACK_FLOW_PORT=8000
+ATTACK_FLOW_PORT=8002   # Changed from 8000 to avoid conflict with Portainer
 
 echo "====================================================="
 echo "  MITRE ATT&CK Workbench Setup for BTPI-CTI Platform"
@@ -79,7 +79,7 @@ services:
     volumes:
       - attack-db-data:/data/db
     ports:
-      - "27017:27017"
+      - "27018:27017"
     restart: unless-stopped
     networks:
       - attack-network
@@ -89,7 +89,7 @@ services:
     container_name: attack-flow-builder
     image: ghcr.io/center-for-threat-informed-defense/attack-flow:main
     ports:
-      - "8000:80"
+      - "8002:80"
     restart: unless-stopped
     networks:
       - attack-network

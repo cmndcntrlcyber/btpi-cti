@@ -1,547 +1,361 @@
 #!/bin/bash
 #
-# CTI Infrastructure Management Script
-# This script provides utilities for managing the CTI infrastructure
+# BTPI-CTI Management Script
+# This script provides a unified management interface for the BTPI-CTI platform
 #
 
 set -e
 
-# Configuration - can be overridden by config.env
-CONFIG_FILE="./config.env"
-CTI_DIR=$(pwd)
-LOG_FILE="$CTI_DIR/cti-management.log"
-BACKUP_DIR="$CTI_DIR/backups"
+# Configuration
+CTI_BASE_DIR="/opt/btpi-cti"
+CTI_VERSION="1.0.0"
+CTI_CONFIG_FILE="${CTI_BASE_DIR}/config.env"
+CURRENT_DIR=$(pwd)
 
-# Load configuration if available
-if [ -f "$CONFIG_FILE" ]; then
-    source "$CONFIG_FILE"
-fi
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Ensure log directory exists
-mkdir -p "$(dirname "$LOG_FILE")"
-mkdir -p "$BACKUP_DIR"
-
-# Logging function
-log() {
-    local level=$1
-    local message=$2
-    local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-    echo "[$timestamp] [$level] $message" | tee -a "$LOG_FILE"
+# Display banner
+display_banner() {
+    echo -e "${BLUE}"
+    echo "==========================================================="
+    echo "       BTPI-CTI - Threat Intelligence Platform v${CTI_VERSION}"
+    echo "==========================================================="
+    echo -e "${NC}\n"
 }
 
-# Display help
-show_help() {
-    echo "CTI Infrastructure Management Script"
-    echo ""
-    echo "Usage: $0 [command] [options]"
-    echo ""
+# Display help information
+display_help() {
+    display_banner
+    echo -e "Usage: ${GREEN}./cti-manage.sh [COMMAND]${NC}\n"
     echo "Commands:"
-    echo "  status              Show status of all CTI components"
-    echo "  start               Start all CTI components"
-    echo "  stop                Stop all CTI components"
-    echo "  restart             Restart all CTI components"
-    echo "  backup              Create a backup of all data"
-    echo "  restore [BACKUP]    Restore from a backup"
-    echo "  update              Update all components to latest versions"
-    echo "  logs [COMPONENT]    Show logs for a specific component or all"
-    echo "  health              Run health checks on all components"
-    echo "  config              Show current configuration"
-    echo "  setup-integration   Configure integrations between components"
-    echo "  add-user            Add a new user to the infrastructure"
-    echo "  help                Show this help message"
-    echo ""
-    echo "Options:"
-    echo "  --force             Force operation even if warnings occur"
-    echo "  --quiet             Suppress output except for errors"
-    echo "  --verbose           Show detailed output"
-    echo ""
-    echo "Examples:"
-    echo "  $0 status"
-    echo "  $0 logs thehive"
-    echo "  $0 backup"
-    echo "  $0 update --force"
-    echo ""
+    echo -e "  ${GREEN}install${NC}              Complete installation of the CTI platform"
+    echo -e "  ${GREEN}start${NC}                Start all CTI services"
+    echo -e "  ${GREEN}stop${NC}                 Stop all CTI services"
+    echo -e "  ${GREEN}restart${NC}              Restart all CTI services"
+    echo -e "  ${GREEN}status${NC}               Display the status of all CTI services"
+    echo -e "  ${GREEN}logs [service]${NC}       Display logs for a specific service"
+    echo -e "  ${GREEN}update${NC}               Update all components to latest versions"
+    echo -e "  ${GREEN}backup${NC}               Backup all CTI data"
+    echo -e "  ${GREEN}restore [backup_file]${NC} Restore from a previous backup"
+    echo -e "  ${GREEN}fix${NC}                  Run diagnostics and fix common issues"
+    echo -e "  ${GREEN}kasm${NC}                 Set up Kasm Workspaces integration"
+    echo -e "  ${GREEN}attack${NC}               Set up MITRE ATT&CK Workbench"
+    echo -e "  ${GREEN}credentials${NC}          Display access credentials for services"
+    echo -e "  ${GREEN}ports${NC}                Display port assignments for services"
+    echo -e ""
+    echo -e "Examples:"
+    echo -e "  ${GREEN}./cti-manage.sh install${NC}       # Full installation"
+    echo -e "  ${GREEN}./cti-manage.sh logs thehive${NC}  # View TheHive logs"
+    echo -e ""
 }
 
-# Check Docker status
+# Check if running as root
+check_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${RED}Error: This script must be run as root${NC}"
+        exit 1
+    fi
+}
+
+# Check if Docker is installed
 check_docker() {
     if ! command -v docker &> /dev/null; then
-        log "ERROR" "Docker is not installed or not in PATH"
-        exit 1
-    fi
-    
-    if ! docker info &> /dev/null; then
-        log "ERROR" "Docker daemon is not running or current user doesn't have permissions"
-        log "INFO" "Try running: sudo systemctl start docker"
-        log "INFO" "Or add current user to docker group: sudo usermod -aG docker $USER"
-        exit 1
-    fi
-    
-    if ! command -v docker-compose &> /dev/null; then
-        log "ERROR" "Docker Compose is not installed or not in PATH"
-        exit 1
-    fi
-}
-
-# Show status of all components
-show_status() {
-    log "INFO" "Checking status of CTI infrastructure components..."
-    
-    # Check all containers
-    log "INFO" "Container Status:"
-    docker-compose ps
-    
-    # Check resource usage
-    log "INFO" "Resource Usage:"
-    docker stats --no-stream
-    
-    # Check disk space
-    log "INFO" "Disk Space:"
-    df -h | grep -E '(Filesystem|/$)'
-    
-    # Check memory usage
-    log "INFO" "Memory Usage:"
-    free -h
-    
-    # Show port usage
-    log "INFO" "Port Usage:"
-    netstat -tulpn | grep -E '(Proto|docker)'
-    
-    log "INFO" "Status check completed"
-}
-
-# Start all components
-start_components() {
-    log "INFO" "Starting CTI infrastructure components..."
-    docker-compose up -d
-    log "INFO" "All components started"
-}
-
-# Stop all components
-stop_components() {
-    log "INFO" "Stopping CTI infrastructure components..."
-    docker-compose down
-    log "INFO" "All components stopped"
-}
-
-# Restart all components
-restart_components() {
-    log "INFO" "Restarting CTI infrastructure components..."
-    docker-compose restart
-    log "INFO" "All components restarted"
-}
-
-# Show logs for components
-show_logs() {
-    local component=$1
-    
-    if [ -z "$component" ]; then
-        log "INFO" "Showing logs for all components..."
-        docker-compose logs --tail=100
-    else
-        log "INFO" "Showing logs for component: $component..."
-        if docker-compose logs "$component" 2>/dev/null; then
-            docker-compose logs --tail=100 "$component"
-        else
-            log "ERROR" "Component not found: $component"
-            log "INFO" "Available components:"
-            docker-compose ps --services
-            exit 1
-        fi
-    fi
-}
-
-# Run health checks
-check_health() {
-    log "INFO" "Running health checks on CTI infrastructure components..."
-    
-    # Check if containers are running
-    log "INFO" "Checking container status..."
-    if docker-compose ps | grep -q "Exit"; then
-        log "WARNING" "Some containers are not running:"
-        docker-compose ps | grep "Exit"
-    else
-        log "SUCCESS" "All containers are running"
-    fi
-    
-    # Check component endpoints
-    log "INFO" "Checking component endpoints..."
-    
-    # Check GRR
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8001 | grep -q "200\|302"; then
-        log "SUCCESS" "GRR endpoint is accessible"
-    else
-        log "WARNING" "GRR endpoint is not responding"
-    fi
-    
-    # Check TheHive
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:9000 | grep -q "200\|302"; then
-        log "SUCCESS" "TheHive endpoint is accessible"
-    else
-        log "WARNING" "TheHive endpoint is not responding"
-    fi
-    
-    # Check Cortex
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:9001 | grep -q "200\|302"; then
-        log "SUCCESS" "Cortex endpoint is accessible"
-    else
-        log "WARNING" "Cortex endpoint is not responding"
-    fi
-    
-    # Check MISP
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 | grep -q "200\|302"; then
-        log "SUCCESS" "MISP endpoint is accessible"
-    else
-        log "WARNING" "MISP endpoint is not responding"
-    fi
-    
-    # Check Portainer
-    if curl -s -k -o /dev/null -w "%{http_code}" https://localhost:9443 | grep -q "200\|302"; then
-        log "SUCCESS" "Portainer endpoint is accessible"
-    else
-        log "WARNING" "Portainer endpoint is not responding"
-    fi
-    
-    # Check disk space
-    log "INFO" "Checking disk space..."
-    disk_usage=$(df -h | grep / | awk '{print $5}' | sed 's/%//')
-    if [ "$disk_usage" -gt 90 ]; then
-        log "WARNING" "Disk space is critically low: ${disk_usage}%"
-    elif [ "$disk_usage" -gt 75 ]; then
-        log "WARNING" "Disk space is running low: ${disk_usage}%"
-    else
-        log "SUCCESS" "Disk space is adequate: ${disk_usage}%"
-    fi
-    
-    # Check memory usage
-    log "INFO" "Checking memory usage..."
-    memory_free=$(free -m | grep "Mem:" | awk '{print $4}')
-    if [ "$memory_free" -lt 1024 ]; then
-        log "WARNING" "Available memory is low: ${memory_free}MB"
-    else
-        log "SUCCESS" "Available memory is adequate: ${memory_free}MB"
-    fi
-    
-    # Check Docker resource usage
-    log "INFO" "Checking Docker resource usage..."
-    docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
-    
-    log "INFO" "Health checks completed"
-}
-
-# Create a backup
-create_backup() {
-    local timestamp=$(date +"%Y%m%d_%H%M%S")
-    local backup_file="$BACKUP_DIR/cti_backup_$timestamp.tar.gz"
-    
-    log "INFO" "Creating backup of CTI infrastructure data..."
-    
-    # Create a directory for temporary files
-    local temp_dir=$(mktemp -d)
-    
-    # Export container configurations
-    log "INFO" "Exporting container configurations..."
-    docker-compose config > "$temp_dir/docker-compose-export.yml"
-    
-    # Create a directory for volume data
-    mkdir -p "$temp_dir/volumes"
-    
-    # List all volumes used by the infrastructure
-    log "INFO" "Identifying volumes to backup..."
-    volumes=$(docker volume ls --filter "name=cti" -q)
-    
-    # Backup each volume
-    log "INFO" "Backing up volumes..."
-    for volume in $volumes; do
-        log "INFO" "Backing up volume: $volume"
+        echo -e "${YELLOW}Docker not found. Installing Docker...${NC}"
+        apt-get update
+        apt-get install -y ca-certificates curl gnupg
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
         
-        # Create a temporary container to access the volume data
-        docker run --rm -v $volume:/source -v $temp_dir/volumes:/backup alpine \
-            sh -c "cd /source && tar cf /backup/$volume.tar ."
-    done
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+        
+        apt-get update
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin curl git
+        
+        systemctl enable docker
+        systemctl start docker
+        
+        echo -e "${GREEN}Docker installed successfully.${NC}"
+    else
+        echo -e "${GREEN}Docker is already installed.${NC}"
+    fi
     
-    # Package everything into a single archive
-    log "INFO" "Creating final backup archive..."
-    tar -czf "$backup_file" -C "$temp_dir" .
-    
-    # Clean up
-    rm -rf "$temp_dir"
-    
-    log "SUCCESS" "Backup created: $backup_file"
-    
-    # Create a manifest file with metadata
-    cat > "$backup_file.manifest" << EOF
-Backup Date: $(date)
-Components: GRR, TheHive, Cortex, MISP, Portainer
-Docker Compose Version: $(docker-compose version --short)
-Docker Version: $(docker --version | awk '{print $3}' | sed 's/,//')
-Host: $(hostname)
-Size: $(du -h "$backup_file" | awk '{print $1}')
-EOF
-
-    log "INFO" "Backup manifest created: $backup_file.manifest"
+    # Check Docker Compose
+    if ! command -v docker-compose &> /dev/null; then
+        echo -e "${YELLOW}Installing Docker Compose plugin...${NC}"
+        apt-get install -y docker-compose-plugin
+        echo -e "${GREEN}Docker Compose plugin installed.${NC}"
+    fi
 }
 
-# Restore from a backup
-restore_backup() {
-    local backup_file=$1
+# Run the fix script to repair any issues
+run_fix_script() {
+    echo -e "${BLUE}Running diagnostics and fixing common issues...${NC}"
     
-    if [ -z "$backup_file" ]; then
-        log "ERROR" "No backup file specified"
-        echo "Available backups:"
-        ls -lh "$BACKUP_DIR" | grep -E '\.tar\.gz$'
+    # Run the comprehensive fix script
+    bash "${CURRENT_DIR}/scripts/fix-stack-issues.sh"
+    
+    echo -e "${GREEN}Fix operation completed.${NC}"
+}
+
+# Install the complete CTI platform
+install_cti() {
+    display_banner
+    check_root
+    check_docker
+    
+    echo -e "${BLUE}Starting installation of BTPI-CTI platform...${NC}"
+    
+    # Create needed directories
+    mkdir -p "${CTI_BASE_DIR}/configs/nginx"
+    mkdir -p "${CTI_BASE_DIR}/grr_configs/server/textservices"
+    mkdir -p "${CTI_BASE_DIR}/grr_configs/healthchecks"
+    mkdir -p "${CTI_BASE_DIR}/integrations"
+    mkdir -p "${CTI_BASE_DIR}/secrets"
+    
+    # Run the fix script to set up all configurations
+    run_fix_script
+    
+    echo -e "${GREEN}BTPI-CTI platform installation completed.${NC}"
+    echo -e "You can now access the platform services at their respective ports."
+    echo -e "Run '${YELLOW}./cti-manage.sh credentials${NC}' to view access details."
+    echo -e "Run '${YELLOW}./cti-manage.sh ports${NC}' to view port assignments."
+}
+
+# Start all CTI services
+start_cti() {
+    display_banner
+    check_root
+    
+    echo -e "${BLUE}Starting all CTI services...${NC}"
+    docker-compose up -d
+    
+    echo -e "${GREEN}All services started.${NC}"
+}
+
+# Stop all CTI services
+stop_cti() {
+    display_banner
+    check_root
+    
+    echo -e "${BLUE}Stopping all CTI services...${NC}"
+    docker-compose down
+    
+    echo -e "${GREEN}All services stopped.${NC}"
+}
+
+# Restart all CTI services
+restart_cti() {
+    display_banner
+    check_root
+    
+    echo -e "${BLUE}Restarting all CTI services...${NC}"
+    docker-compose restart
+    
+    echo -e "${GREEN}All services restarted.${NC}"
+}
+
+# Display the status of all CTI services
+status_cti() {
+    display_banner
+    
+    echo -e "${BLUE}Current status of CTI services:${NC}"
+    docker-compose ps
+}
+
+# Display logs for a specific service
+logs_cti() {
+    display_banner
+    
+    if [ -z "$1" ]; then
+        echo -e "${YELLOW}Please specify a service name. Available services:${NC}"
+        docker-compose ps --services
         exit 1
     fi
     
-    if [ ! -f "$backup_file" ]; then
-        # Check if it might be in the backup directory
-        if [ -f "$BACKUP_DIR/$backup_file" ]; then
-            backup_file="$BACKUP_DIR/$backup_file"
-        else
-            log "ERROR" "Backup file not found: $backup_file"
-            exit 1
-        fi
-    fi
-    
-    log "WARNING" "Restoring will stop all running containers and replace current data"
-    read -p "Are you sure you want to continue? (y/N) " confirm
-    if [[ $confirm != [yY] ]]; then
-        log "INFO" "Restore cancelled"
-        exit 0
-    fi
-    
-    # Stop all containers
-    log "INFO" "Stopping all containers..."
-    docker-compose down
-    
-    # Create a temporary directory for extraction
-    local temp_dir=$(mktemp -d)
-    
-    # Extract the backup
-    log "INFO" "Extracting backup archive..."
-    tar -xzf "$backup_file" -C "$temp_dir"
-    
-    # Restore docker-compose configuration
-    log "INFO" "Restoring container configurations..."
-    if [ -f "$temp_dir/docker-compose-export.yml" ]; then
-        cp "$temp_dir/docker-compose-export.yml" docker-compose.yml
-    fi
-    
-    # Restore each volume
-    log "INFO" "Restoring volumes..."
-    for tar_file in "$temp_dir/volumes"/*.tar; do
-        if [ -f "$tar_file" ]; then
-            volume_name=$(basename "$tar_file" .tar)
-            log "INFO" "Restoring volume: $volume_name"
-            
-            # Ensure volume exists
-            docker volume create "$volume_name" &> /dev/null || true
-            
-            # Restore data to volume
-            docker run --rm -v $volume_name:/dest -v "$temp_dir/volumes:/backup" alpine \
-                sh -c "cd /dest && tar xf /backup/$(basename $tar_file) ."
-        fi
-    done
-    
-    # Clean up
-    rm -rf "$temp_dir"
-    
-    # Restart containers
-    log "INFO" "Starting containers with restored data..."
-    docker-compose up -d
-    
-    log "SUCCESS" "Restore completed from: $backup_file"
+    echo -e "${BLUE}Displaying logs for ${YELLOW}$1${BLUE}:${NC}"
+    docker-compose logs --tail=100 -f "$1"
 }
 
-# Update all components
-update_components() {
-    log "INFO" "Updating CTI infrastructure components..."
+# Update all components to the latest versions
+update_cti() {
+    display_banner
+    check_root
     
-    # Pull latest images
-    log "INFO" "Pulling latest images..."
+    echo -e "${BLUE}Updating all CTI components...${NC}"
+    
+    # Pull latest docker images
     docker-compose pull
     
     # Restart services with new images
-    log "INFO" "Restarting with updated images..."
     docker-compose up -d
     
-    log "SUCCESS" "All components updated to latest versions"
+    echo -e "${GREEN}All services updated to latest versions.${NC}"
 }
 
-# Show configuration
-show_config() {
-    log "INFO" "Current CTI infrastructure configuration:"
+# Backup all CTI data
+backup_cti() {
+    display_banner
+    check_root
     
-    if [ -f "$CONFIG_FILE" ]; then
-        cat "$CONFIG_FILE"
-    else
-        log "WARNING" "Configuration file not found: $CONFIG_FILE"
-        log "INFO" "Using default configuration"
-    fi
+    echo -e "${BLUE}Starting backup of all CTI data...${NC}"
+    bash "${CURRENT_DIR}/scripts/backup.sh"
     
-    # Show docker-compose configuration
-    log "INFO" "Docker Compose Configuration:"
-    docker-compose config
+    echo -e "${GREEN}Backup completed.${NC}"
 }
 
-# Setup integration between components
-setup_integration() {
-    log "INFO" "Setting up integrations between CTI components..."
+# Restore from a previous backup
+restore_cti() {
+    display_banner
+    check_root
     
-    # TheHive - Cortex Integration
-    log "INFO" "Setting up TheHive-Cortex integration..."
-    
-    # Get Cortex API key
-    read -p "Enter Cortex API Key: " cortex_api_key
-    
-    if [ -z "$cortex_api_key" ]; then
-        log "ERROR" "No API key provided. Integration setup aborted."
+    if [ -z "$1" ]; then
+        echo -e "${YELLOW}Please specify a backup file to restore from.${NC}"
         exit 1
     fi
     
-    # Update docker-compose file with the API key
-    if [ -f "docker-compose.yml" ]; then
-        # Use sed to replace the API key placeholder
-        sed -i "s/CORTEX_API_KEY_HERE/$cortex_api_key/" docker-compose.yml
-        log "SUCCESS" "Updated TheHive configuration with Cortex API key"
-        
-        # Restart TheHive to apply changes
-        log "INFO" "Restarting TheHive to apply changes..."
-        docker-compose restart thehive
-    else
-        log "ERROR" "docker-compose.yml file not found"
-        exit 1
-    fi
+    echo -e "${BLUE}Restoring from backup $1...${NC}"
+    bash "${CURRENT_DIR}/scripts/restore.sh" "$1"
     
-    # TheHive - MISP Integration
-    log "INFO" "Setting up TheHive-MISP integration..."
-    log "INFO" "Please complete the following steps manually:"
-    log "INFO" "1. Log in to MISP at http://localhost:8080"
-    log "INFO" "2. Go to Administration > List Auth Keys"
-    log "INFO" "3. Add a new authentication key for TheHive"
-    log "INFO" "4. Log in to TheHive at http://localhost:9000"
-    log "INFO" "5. Go to Admin > Configuration > MISP"
-    log "INFO" "6. Add a new MISP connection with the URL and API key"
-    
-    log "SUCCESS" "Integration setup instructions provided"
+    echo -e "${GREEN}Restore completed.${NC}"
 }
 
-# Add a new user
-add_user() {
-    log "INFO" "Adding a new user to CTI infrastructure..."
+# Set up Kasm Workspaces integration
+setup_kasm() {
+    display_banner
+    check_root
     
-    # Prompt for user details
-    read -p "Username: " username
-    read -p "Email: " email
-    read -p "Select component (thehive, cortex, misp, grr, all): " component
+    echo -e "${BLUE}Setting up Kasm Workspaces integration...${NC}"
+    bash "${CURRENT_DIR}/scripts/kasm-integration.sh"
     
-    if [ -z "$username" ] || [ -z "$email" ]; then
-        log "ERROR" "Username and email are required"
-        exit 1
-    fi
-    
-    case $component in
-        thehive)
-            log "INFO" "Please complete the following steps manually:"
-            log "INFO" "1. Log in to TheHive at http://localhost:9000"
-            log "INFO" "2. Go to Admin > Users"
-            log "INFO" "3. Add a new user with the following details:"
-            log "INFO" "   - Login: $username"
-            log "INFO" "   - Email: $email"
-            ;;
-        cortex)
-            log "INFO" "Please complete the following steps manually:"
-            log "INFO" "1. Log in to Cortex at http://localhost:9001"
-            log "INFO" "2. Go to Organizations > [YourOrg] > Users"
-            log "INFO" "3. Add a new user with the following details:"
-            log "INFO" "   - Login: $username"
-            log "INFO" "   - Email: $email"
-            ;;
-        misp)
-            log "INFO" "Please complete the following steps manually:"
-            log "INFO" "1. Log in to MISP at http://localhost:8080"
-            log "INFO" "2. Go to Administration > Add User"
-            log "INFO" "3. Add a new user with the following details:"
-            log "INFO" "   - Email: $email"
-            ;;
-        grr)
-            log "INFO" "Please complete the following steps manually:"
-            log "INFO" "1. Log in to GRR at http://localhost:8001"
-            log "INFO" "2. Go to User Management"
-            log "INFO" "3. Add a new user with the following details:"
-            log "INFO" "   - Username: $username"
-            log "INFO" "   - Email: $email"
-            ;;
-        all)
-            log "INFO" "Please add the user to all components following the instructions for each component."
-            ;;
-        *)
-            log "ERROR" "Invalid component: $component"
-            log "INFO" "Valid components: thehive, cortex, misp, grr, all"
-            exit 1
-            ;;
-    esac
-    
-    log "SUCCESS" "User addition instructions provided"
+    echo -e "${GREEN}Kasm Workspaces integration completed.${NC}"
 }
 
-# Main command processing
-if [ $# -eq 0 ]; then
-    show_help
-    exit 0
-fi
+# Set up MITRE ATT&CK Workbench
+setup_attack() {
+    display_banner
+    check_root
+    
+    echo -e "${BLUE}Setting up MITRE ATT&CK Workbench...${NC}"
+    bash "${CURRENT_DIR}/scripts/setup-attack-workbench.sh"
+    
+    echo -e "${GREEN}MITRE ATT&CK Workbench setup completed.${NC}"
+}
 
-# Check Docker installation
-check_docker
+# Display access credentials for all services
+show_credentials() {
+    display_banner
+    
+    echo -e "${BLUE}Access credentials for CTI services:${NC}\n"
+    
+    echo -e "${YELLOW}TheHive:${NC}"
+    echo -e "  URL: http://localhost:9000"
+    echo -e "  Default Username: admin@thehive.local"
+    echo -e "  Default Password: secret"
+    echo -e ""
+    
+    echo -e "${YELLOW}Cortex:${NC}"
+    echo -e "  URL: http://localhost:9001"
+    echo -e "  Default Username: admin@cortex.local"
+    echo -e "  Default Password: secret"
+    echo -e ""
+    
+    echo -e "${YELLOW}MISP:${NC}"
+    echo -e "  URL: http://localhost:8080"
+    echo -e "  Default Username: admin@admin.test"
+    echo -e "  Default Password: admin"
+    echo -e ""
+    
+    echo -e "${YELLOW}GRR Rapid Response:${NC}"
+    echo -e "  URL: http://localhost:8001"
+    echo -e "  Default Username: admin"
+    echo -e "  Default Password: Set during first login"
+    echo -e ""
+    
+    echo -e "${YELLOW}Portainer:${NC}"
+    echo -e "  URL: https://localhost:9443"
+    echo -e "  Default Username: admin"
+    echo -e "  Default Password: Set during first login"
+    echo -e ""
+    
+    echo -e "${YELLOW}ATT&CK Workbench:${NC}"
+    echo -e "  URL: http://localhost:9080"
+    echo -e ""
+    
+    echo -e "${YELLOW}Note:${NC} If Kasm Workspaces integration is enabled, you can access all services securely via Kasm."
+}
 
-# Process command
-command=$1
-shift
+# Display port assignments for all services
+show_ports() {
+    display_banner
+    
+    echo -e "${BLUE}Port assignments for CTI services:${NC}\n"
+    
+    echo -e "${YELLOW}TheHive:${NC} 9000"
+    echo -e "${YELLOW}Cortex:${NC} 9001"
+    echo -e "${YELLOW}MISP:${NC} 8080"
+    echo -e "${YELLOW}GRR Rapid Response:${NC} 8001"
+    echo -e "${YELLOW}Portainer:${NC} 9000 (HTTP), 9010 (Original UI), 9443 (HTTPS)"
+    echo -e "${YELLOW}Attack Workbench:${NC} 9080"
+    echo -e "${YELLOW}Attack Flow:${NC} 8002"
+    echo -e "${YELLOW}Elasticsearch:${NC} 9200, 9300"
+    echo -e "${YELLOW}Cassandra:${NC} 9042"
+    echo -e "${YELLOW}MinIO:${NC} 10000 (API), 9090 (Console)"
+    echo -e "${YELLOW}Integration API:${NC} 8888"
+    echo -e "${YELLOW}MongoDB (Attack Workbench):${NC} 27018"
+}
 
-case $command in
-    status)
-        show_status
+# Parse command line arguments
+case "$1" in
+    install)
+        install_cti
         ;;
     start)
-        start_components
+        start_cti
         ;;
     stop)
-        stop_components
+        stop_cti
         ;;
     restart)
-        restart_components
+        restart_cti
         ;;
-    backup)
-        create_backup
-        ;;
-    restore)
-        restore_backup "$1"
-        ;;
-    update)
-        update_components
+    status)
+        status_cti
         ;;
     logs)
-        show_logs "$1"
+        logs_cti "$2"
         ;;
-    health)
-        check_health
+    update)
+        update_cti
         ;;
-    config)
-        show_config
+    backup)
+        backup_cti
         ;;
-    setup-integration)
-        setup_integration
+    restore)
+        restore_cti "$2"
         ;;
-    add-user)
-        add_user
+    fix)
+        run_fix_script
         ;;
-    help)
-        show_help
+    kasm)
+        setup_kasm
+        ;;
+    attack)
+        setup_attack
+        ;;
+    credentials)
+        show_credentials
+        ;;
+    ports)
+        show_ports
         ;;
     *)
-        echo "Unknown command: $command"
-        show_help
-        exit 1
+        display_help
         ;;
 esac
 
