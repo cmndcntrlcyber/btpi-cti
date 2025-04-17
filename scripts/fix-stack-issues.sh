@@ -137,3 +137,22 @@ docker-compose up -d
 echo "BTPI-CTI stack configuration fix completed."
 echo "Check the status with: docker-compose ps"
 echo "View logs with: docker-compose logs [service_name]"
+
+# Integrate with Kasm Workspaces
+echo ""
+echo "====================================================="
+echo "  Setting up Kasm Workspaces integration"
+echo "====================================================="
+echo ""
+echo "This will configure Kasm Workspaces to proxy all CTI application interfaces."
+echo "Would you like to proceed with Kasm Workspaces integration? (y/n)"
+read -p " " -n 1 -r
+echo
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Running Kasm integration script..."
+    bash /opt/btpi-cti/scripts/kasm-integration.sh
+else
+    echo "Skipping Kasm integration. You can run it later with:"
+    echo "  sudo /opt/btpi-cti/scripts/kasm-integration.sh"
+fi
