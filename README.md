@@ -109,7 +109,7 @@ Cortex is a powerful observable analysis engine that connects to many external s
 
 MISP is an open-source threat intelligence platform for sharing, storing, and correlating IOCs:
 
-- **Web Interface**: http://localhost:8080
+- **Web Interface**: http://localhost:8083
 - **Default Username**: admin@admin.test
 - **Default Password**: admin
 
@@ -126,7 +126,7 @@ GRR is an incident response framework focused on remote live forensics:
 Attack Workbench provides a collaborative environment for working with ATT&CK data:
 
 - **Web Interface**: http://localhost:9080
-- **MongoDB**: localhost:27017
+- **MongoDB**: localhost:27018
 - **REST API**: http://localhost:3500
 
 ## Secure Access via Kasm Workspaces

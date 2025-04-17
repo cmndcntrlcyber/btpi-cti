@@ -381,8 +381,8 @@ services:
     container_name: misp-core
     hostname: misp
     ports:
-      - "8080:80"
-      - "443:443"
+      - "8083:80"     # Changed from 8080:80 to avoid conflict with Gophish
+      - "8443:443"    # Changed from 443:443 to avoid conflict with Kasm Workspaces
     environment:
       - MYSQL_HOST=misp-db
       - MYSQL_DATABASE=misp
