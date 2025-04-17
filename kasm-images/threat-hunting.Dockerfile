@@ -90,13 +90,16 @@ RUN curl -sSL https://get.golang.org/go_installer | sh -s -- -v 1.20 \
     && cp /root/go/bin/nuclei /usr/local/bin/ \
     && nuclei -update-templates
 
+# Copy BTPI-CTI Logo
+COPY docs/BTPI-CTI-Logo.svg /opt/btpi-logo.svg
+
 # Create desktop shortcuts for CTI tools
 RUN mkdir -p $HOME/Desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=TheHive\nComment=Security Incident Response Platform\nExec=google-chrome-stable http://localhost:9000\nIcon=\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/thehive.desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=MISP\nComment=Threat Intelligence Platform\nExec=google-chrome-stable http://localhost:8080\nIcon=\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/misp.desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=Cortex\nComment=Observable Analysis Engine\nExec=google-chrome-stable http://localhost:9001\nIcon=\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/cortex.desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=GRR\nComment=Rapid Response Framework\nExec=google-chrome-stable http://localhost:8001\nIcon=\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/grr.desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=CyberChef\nComment=Cyber Swiss Army Knife\nExec=google-chrome-stable /opt/cyberchef/CyberChef_v10.5.2.html\nIcon=\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/cyberchef.desktop
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=TheHive\nComment=Security Incident Response Platform\nExec=google-chrome-stable http://localhost:9000\nIcon=/opt/btpi-logo.svg\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/thehive.desktop \
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=MISP\nComment=Threat Intelligence Platform\nExec=google-chrome-stable http://localhost:8080\nIcon=/opt/btpi-logo.svg\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/misp.desktop \
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=Cortex\nComment=Observable Analysis Engine\nExec=google-chrome-stable http://localhost:9001\nIcon=/opt/btpi-logo.svg\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/cortex.desktop \
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=GRR\nComment=Rapid Response Framework\nExec=google-chrome-stable http://localhost:8001\nIcon=/opt/btpi-logo.svg\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/grr.desktop \
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=CyberChef\nComment=Cyber Swiss Army Knife\nExec=google-chrome-stable /opt/cyberchef/CyberChef_v10.5.2.html\nIcon=/opt/btpi-logo.svg\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/cyberchef.desktop
 
 # Add custom bookmarks to browsers
 RUN mkdir -p $HOME/.mozilla/firefox/bookmarks \

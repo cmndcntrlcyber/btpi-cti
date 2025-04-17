@@ -2,7 +2,7 @@
 ## Blue Team Portable Infrastructure - Cyber Threat Intelligence
 A Cyber Threat Intelligence and Threat Hunting flavor of the Blue Team Portable Infrastructure
 
-![]('https://www.notion.so/c3s-consulting/BTPI-CTI-1d8554244e62806e8ed5cf070fee0e60?pvs=4#1d8554244e628018a729cb3239ac3d1dg')
+![BTPI-CTI Logo](/docs/BTPI-CTI-Logo.svg)
 
 ## Rapidly Deployable CTI Infrastructure
 

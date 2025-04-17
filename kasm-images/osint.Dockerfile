@@ -105,13 +105,16 @@ RUN mkdir -p /opt/cyberchef \
     && unzip /tmp/cyberchef.zip -d /opt/cyberchef \
     && rm /tmp/cyberchef.zip
 
+# Copy BTPI-CTI Logo
+COPY docs/BTPI-CTI-Logo.svg /opt/btpi-logo.svg
+
 # Create desktop shortcuts
 RUN mkdir -p $HOME/Desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=SpiderFoot\nComment=OSINT Reconnaissance Tool\nExec=bash -c 'cd /opt/spiderfoot && python3 sf.py -l 127.0.0.1:5001 & google-chrome-stable http://127.0.0.1:5001 --new-window'\nIcon=\nPath=/opt/spiderfoot\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/spiderfoot.desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=Maltego\nComment=OSINT and Graphical Link Analysis\nExec=maltego\nIcon=\nPath=/opt/maltego\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/maltego.desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=theHarvester\nComment=E-mail, subdomain and name harvester\nExec=gnome-terminal -- bash -c 'cd /opt/theharvester && python3 theHarvester.py -h; bash'\nIcon=\nPath=/opt/theharvester\nTerminal=true\nStartupNotify=false" > $HOME/Desktop/theharvester.desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=Recon-ng\nComment=Web Reconnaissance Framework\nExec=gnome-terminal -- bash -c 'cd /opt/recon-ng && ./recon-ng; bash'\nIcon=\nPath=/opt/recon-ng\nTerminal=true\nStartupNotify=false" > $HOME/Desktop/reconng.desktop \
-    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=CyberChef\nComment=Cyber Swiss Army Knife\nExec=google-chrome-stable /opt/cyberchef/CyberChef_v10.5.2.html\nIcon=\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/cyberchef.desktop
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=SpiderFoot\nComment=OSINT Reconnaissance Tool\nExec=bash -c 'cd /opt/spiderfoot && python3 sf.py -l 127.0.0.1:5001 & google-chrome-stable http://127.0.0.1:5001 --new-window'\nIcon=/opt/btpi-logo.svg\nPath=/opt/spiderfoot\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/spiderfoot.desktop \
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=Maltego\nComment=OSINT and Graphical Link Analysis\nExec=maltego\nIcon=/opt/btpi-logo.svg\nPath=/opt/maltego\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/maltego.desktop \
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=theHarvester\nComment=E-mail, subdomain and name harvester\nExec=gnome-terminal -- bash -c 'cd /opt/theharvester && python3 theHarvester.py -h; bash'\nIcon=/opt/btpi-logo.svg\nPath=/opt/theharvester\nTerminal=true\nStartupNotify=false" > $HOME/Desktop/theharvester.desktop \
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=Recon-ng\nComment=Web Reconnaissance Framework\nExec=gnome-terminal -- bash -c 'cd /opt/recon-ng && ./recon-ng; bash'\nIcon=/opt/btpi-logo.svg\nPath=/opt/recon-ng\nTerminal=true\nStartupNotify=false" > $HOME/Desktop/reconng.desktop \
+    && echo "[Desktop Entry]\nVersion=1.0\nType=Application\nName=CyberChef\nComment=Cyber Swiss Army Knife\nExec=google-chrome-stable /opt/cyberchef/CyberChef_v10.5.2.html\nIcon=/opt/btpi-logo.svg\nPath=\nTerminal=false\nStartupNotify=false" > $HOME/Desktop/cyberchef.desktop
 
 # Create OSINT Bookmarks
 RUN mkdir -p $HOME/.mozilla/firefox/bookmarks && \
