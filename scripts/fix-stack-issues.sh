@@ -47,10 +47,11 @@ server {
 EOF
 fi
 
-# Create basic GRR health check script if it doesn't exist
-if [ ! -f "grr_configs/healthchecks/grr-admin-ui.sh" ]; then
-  echo "Creating GRR health check script..."
-  cat > grr_configs/healthchecks/grr-admin-ui.sh << 'EOF'
+# Create GRR configuration files
+echo "Creating GRR configuration files..."
+
+# Create GRR health check script
+cat > grr_configs/healthchecks/grr-admin-ui.sh << 'EOF'
 #!/bin/bash
 # Simple health check for GRR admin UI
 if curl -s http://localhost:8000/ | grep -q "GRR"; then
@@ -59,8 +60,132 @@ else
   exit 1
 fi
 EOF
-  chmod +x grr_configs/healthchecks/grr-admin-ui.sh
+chmod +x grr_configs/healthchecks/grr-admin-ui.sh
+
+# Create repack clients script
+cat > grr_configs/server/repack_clients.sh << 'EOF'
+#!/bin/bash
+# GRR Client Repackaging Script
+# This script repacks GRR clients for different platforms
+
+set -e
+
+echo "Starting GRR client repackaging..."
+
+# Ensure the client installers directory exists
+mkdir -p /client_installers
+
+# Check if we need to repack clients
+# If client installers already exist, skip repackaging
+if [ "$(ls -A /client_installers 2>/dev/null)" ]; then
+  echo "Client installers already exist, skipping repackaging."
+  exit 0
 fi
+
+# Otherwise, repack clients for all major platforms
+echo "Repacking GRR clients for all platforms..."
+
+# Windows client
+echo "Repacking Windows client..."
+grr_config_updater repack_clients --platform windows --output_dir=/client_installers
+
+# Linux client
+echo "Repacking Linux client..."
+grr_config_updater repack_clients --platform linux --output_dir=/client_installers
+
+# macOS client
+echo "Repacking macOS client..."
+grr_config_updater repack_clients --platform darwin --output_dir=/client_installers
+
+echo "Client repackaging completed successfully."
+exit 0
+EOF
+chmod +x grr_configs/server/repack_clients.sh
+
+# Create GRR server configuration
+cat > grr_configs/server/grr.server.yaml << 'EOF'
+# GRR Server Configuration
+# Basic configuration for GRR components
+
+# Server Configuration
+Client.server_urls: ["http://fleetspeak-frontend:4443/"]
+Client.poll_max: 600
+Client.poll_min: 60
+
+# Database Configuration
+Mysql.implementation: MySQLAdvanced
+Mysql.host: mysql-host
+Mysql.port: 3306
+Mysql.username: grr
+Mysql.password: $(cat /run/secrets/mysql_password)
+Mysql.database: grr
+
+# Admin UI Configuration
+AdminUI.url: "http://admin-ui:8000/"
+AdminUI.prompt_email_address_on_authorization_request: False
+AdminUI.django_secret_key: "$(cat /run/secrets/thehive_secret)"
+
+# Fleetspeak frontend Configuration
+Server.fleetspeak_enabled: true
+Server.fleetspeak_service_name: GRR
+
+# Fleetspeak server address
+Server.fleetspeak_server: fleetspeak-frontend:4443
+
+# Logger Configuration
+Logging.domain: localhost
+Logging.verbose: True
+
+# GRR Frontend Configuration
+Frontend.bind_port: 11111
+Frontend.bind_address: 0.0.0.0
+
+# Worker Configuration
+Worker.task_limit: 1000
+
+# File storage configuration
+Datastore.implementation: MySQLFleetspeak
+Client.executable_signing_public_key: |
+  -----BEGIN PUBLIC KEY-----
+  MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEEIekOJ6vdWJzIk6YKp8mu31LAqJR
+  w1pOJnfRUKdYhv2mQMWwJZrXE3HzKA3wHuNBWdlZYkveEsODMqXMZPeHBw==
+  -----END PUBLIC KEY-----
+EOF
+
+# Create Fleetspeak admin components configuration
+cat > grr_configs/server/textservices/admin.components.config << 'EOF'
+# Fleetspeak admin components configuration
+services {
+  name: "GRR"
+  factory: "GRPC"
+  config {
+    [type.googleapis.com/fleetspeak.grpcservice.Config] {
+      target: "grr-fleetspeak-frontend:11111"
+      insecure: true
+    }
+  }
+}
+EOF
+
+# Create Fleetspeak frontend components configuration
+cat > grr_configs/server/textservices/frontend.components.config << 'EOF'
+# Fleetspeak frontend components configuration
+services {
+  name: "GRR"
+  factory: "GRPC"
+  config {
+    [type.googleapis.com/fleetspeak.grpcservice.Config] {
+      target: "grr-fleetspeak-frontend:11111"
+      insecure: true
+    }
+  }
+}
+EOF
+
+# Create GRR frontend service file
+cat > grr_configs/server/grr_frontend.service << 'EOF'
+name: "GRR"
+EOF
 
 # Create basic placeholder for integration
 echo "Creating integration placeholders..."
