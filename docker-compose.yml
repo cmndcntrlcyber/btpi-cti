@@ -318,7 +318,7 @@ services:
       start_period: 30s
 
   thehive:
-    image: strangebee/thehive:latest
+    image: strangebee/thehive:5.2.7-1
     container_name: thehive
     hostname: thehive
     depends_on:
