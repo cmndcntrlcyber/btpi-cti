@@ -1,0 +1,181 @@
+version: '3.8'
+
+networks:
+  cti-network:
+    external: true
+
+volumes:
+  cassandra_data: # For TheHive
+  elasticsearch_data: # For TheHive and Cortex
+  minio_data: # For TheHive
+
+services:
+  # === TheHive Components ===
+  cassandra:
+    image: 'cassandra:latest'
+    container_name: cassandra
+    hostname: cassandra
+    mem_limit: 2048m
+    ports:
+      - "9042:9042"
+    environment:
+      - MAX_HEAP_SIZE=1024M
+      - HEAP_NEWSIZE=1024M
+      - CASSANDRA_CLUSTER_NAME=TheHive
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    restart: unless-stopped
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status | grep -q '^UN'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.16
+    container_name: elasticsearch
+    hostname: elasticsearch
+    mem_limit: 2048m
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - bootstrap.memory_lock=true
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - ../../secrets/elastic_password:/run/secrets/elastic_password:ro
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: minio
+    hostname: minio
+    mem_limit: 1024m
+    command: ["server", "/data", "--console-address", ":9090"]
+    environment:
+      - MINIO_ROOT_USER_FILE=/run/secrets/minio_root_user
+      - MINIO_ROOT_PASSWORD_FILE=/run/secrets/minio_root_password
+    ports:
+      - "10000:9000"  # Changed from 9000 to avoid conflict with TheHive
+      - "9090:9090"   # Minio console
+    volumes:
+      - minio_data:/data
+      - ../../secrets/minio_root_user:/run/secrets/minio_root_user:ro
+      - ../../secrets/minio_root_password:/run/secrets/minio_root_password:ro
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  cortex:
+    image: thehiveproject/cortex:latest
+    container_name: cortex
+    hostname: cortex
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - job_directory=/tmp/cortex-jobs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /tmp/cortex-jobs:/tmp/cortex-jobs
+    ports:
+      - "9001:9001"
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  thehive:
+    image: strangebee/thehive:5.2.7-1
+    container_name: thehive
+    hostname: thehive
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      cortex:
+        condition: service_healthy
+    mem_limit: 2048m
+    ports:
+      - "9000:9000"
+    environment:
+      - JVM_OPTS=-Xms1536M -Xmx1536M
+    volumes:
+      - ./thehive-application.conf:/etc/thehive/application.conf:ro
+      - ../../secrets/thehive_secret:/run/secrets/thehive_secret:ro
+      - ../../secrets/minio_root_user:/run/secrets/minio_root_user:ro
+      - ../../secrets/minio_root_password:/run/secrets/minio_root_password:ro
+      - ../../secrets/cortex_api_key:/run/secrets/cortex_api_key:ro
+    command:
+      - --secret-file
+      - /run/secrets/thehive_secret
+      - "--cql-hostnames"
+      - "cassandra"
+      - "--index-backend"
+      - "elasticsearch"
+      - "--es-hostnames"
+      - "elasticsearch"
+      - "--s3-endpoint"
+      - "http://minio:9000"
+      - "--s3-access-key-file"
+      - "/run/secrets/minio_root_user"
+      - "--s3-secret-key-file"
+      - "/run/secrets/minio_root_password"
+      - "--s3-bucket"
+      - "thehive"
+      - "--s3-use-path-access-style"
+      - "--cortex-hostnames"
+      - "cortex"
+      - "--cortex-keys-file"
+      - "/run/secrets/cortex_api_key"
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s

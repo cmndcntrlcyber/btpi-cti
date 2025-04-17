@@ -1,0 +1,46 @@
+# GRR Server Configuration
+# Basic configuration for GRR components
+
+# Server Configuration
+Client.server_urls: "http://fleetspeak-frontend:4443"
+Client.poll_max: 600
+Client.poll_min: 60
+
+# Database Configuration
+Mysql.implementation: MySQLAdvanced
+Mysql.host: mysql-host
+Mysql.port: 3306
+Mysql.username: grr
+Mysql.password: $(cat /run/secrets/mysql_password)
+Mysql.database: grr
+
+# Admin UI Configuration
+AdminUI.url: "http://admin-ui:8000/"
+AdminUI.prompt_email_address_on_authorization_request: False
+AdminUI.django_secret_key: "$(cat /run/secrets/thehive_secret)"
+
+# Fleetspeak frontend Configuration
+Server.fleetspeak_enabled: true
+Server.fleetspeak_service_name: GRR
+
+# Fleetspeak server address
+Server.fleetspeak_server: fleetspeak-frontend:4443
+
+# Logger Configuration
+Logging.domain: localhost
+Logging.verbose: True
+
+# GRR Frontend Configuration
+Frontend.bind_port: 11111
+Frontend.bind_address: 0.0.0.0
+
+# Worker Configuration
+Worker.task_limit: 1000
+
+# File storage configuration
+Datastore.implementation: MySQLFleetspeak
+Client.executable_signing_public_key: |
+  -----BEGIN PUBLIC KEY-----
+  MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEEIekOJ6vdWJzIk6YKp8mu31LAqJR
+  w1pOJnfRUKdYhv2mQMWwJZrXE3HzKA3wHuNBWdlZYkveEsODMqXMZPeHBw==
+  -----END PUBLIC KEY-----

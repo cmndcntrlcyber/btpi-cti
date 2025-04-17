@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cortex-TheHive Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            overflow-x: auto;
+        }
+        code {
+            font-family: monospace;
+        }
+        .note {
+            background-color: #e7f3fe;
+            border-left: 4px solid #2196F3;
+            padding: 10px;
+            margin: 15px 0;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Cortex-TheHive Integration Guide</h1>
+    
+    <p>This page provides instructions for integrating Cortex analyzers with TheHive platform.</p>
+
+    <h2>Overview</h2>
+    <p>Cortex is a powerful observable analysis engine that can be integrated with TheHive to provide automated analysis of indicators. This integration enables analysts to run Cortex analyzers directly from TheHive interface.</p>
+    
+    <div class="note">
+        <p><strong>Note:</strong> In this BTPI-CTI deployment, Cortex and TheHive are already configured to work together. This documentation explains how to leverage this integration and customize it further.</p>
+    </div>
+    
+    <h2>Configuration</h2>
+    <p>Cortex and TheHive are integrated using the following configuration:</p>
+    <ul>
+        <li>Cortex is available at: <a href="http://cortex:9001" target="_blank">http://cortex:9001</a></li>
+        <li>TheHive is configured to connect to Cortex using API keys</li>
+        <li>Analyzers results are imported back into TheHive automatically</li>
+    </ul>
+    
+    <h2>Usage</h2>
+    <p>To use Cortex analyzers within TheHive:</p>
+    <ol>
+        <li>Log in to TheHive</li>
+        <li>Navigate to a case containing observables</li>
+        <li>Select one or more observables</li>
+        <li>Click "Run Analyzers" to execute Cortex analyzers against the selected observables</li>
+        <li>View the analysis results directly within TheHive</li>
+    </ol>
+
+    <h2>API Usage Example</h2>
+    <p>For automated integration, you can use the Cortex API:</p>
+    <pre><code>
+curl -XPOST -H 'Authorization: Bearer $API_KEY' \
+    -H 'Content-Type: application/json' \
+    http://cortex:9001/api/analyzer/_run \
+    -d '{
+      "data": "malware.com",
+      "dataType": "domain",
+      "tlp": 2,
+      "analyzers": ["Virustotal_v3_GetDomain", "DomainTools_Reputation"]
+    }'
+    </code></pre>
+    
+    <p><a href="/">← Back to Integration Index</a></p>
+</body>
+</html>

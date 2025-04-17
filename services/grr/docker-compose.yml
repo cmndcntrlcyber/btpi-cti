@@ -1,0 +1,171 @@
+version: '3.8'
+
+networks:
+  cti-network:
+    external: true
+
+volumes:
+  db_data: # GRR MySQL data
+  client_installers: # GRR client installers
+  client_state: # GRR client state
+
+services:
+  # === GRR MySQL Database ===
+  grr-db:
+    image: mysql:8.2
+    container_name: grr-db
+    hostname: mysql-host
+    command:
+      - --max_allowed_packet=40M
+      - --log_bin_trust_function_creators=1
+      - --innodb_redo_log_capacity=167772160
+      - --innodb_log_file_size=2500M
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password
+      - MYSQL_DATABASE=grr
+      - MYSQL_USER=grr
+      - MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
+    volumes:
+      - db_data:/var/lib/mysql:rw
+      - ../../secrets/mysql_root_password:/run/secrets/mysql_root_password:ro
+      - ../../secrets/mysql_password:/run/secrets/mysql_password:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "grr", "-p$$(cat /run/secrets/mysql_password)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # === GRR Components ===
+  grr-admin-ui:
+    image: ghcr.io/google/grr:latest
+    container_name: grr-admin-ui
+    hostname: admin-ui
+    depends_on:
+      grr-db:
+        condition: service_healthy
+      fleetspeak-admin:
+        condition: service_started
+    volumes:
+      - ./configs:/configs/
+      - client_installers:/client_installers
+    ports:
+      - "8001:8000"
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    entrypoint: [
+      "/bin/bash",
+      "-c",
+      "/configs/repack_clients.sh && grr_server -component admin_ui -config /configs/grr.server.yaml --verbose"
+    ]
+    healthcheck:
+      test: "/configs/healthchecks/grr-admin-ui.sh"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  grr-fleetspeak-frontend:
+    image: ghcr.io/google/grr:latest
+    container_name: grr-fleetspeak-frontend
+    hostname: grr-fleetspeak-frontend
+    depends_on:
+      grr-db:
+        condition: service_healthy
+    volumes:
+      - ./configs:/configs
+    expose:
+      - "11111"
+    restart: unless-stopped
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - -component
+      - frontend
+      - -config
+      - /configs/grr.server.yaml
+      - --verbose
+
+  fleetspeak-admin:
+    image: ghcr.io/google/fleetspeak:latest
+    container_name: fleetspeak-admin
+    hostname: fleetspeak-admin
+    depends_on:
+      grr-db:
+        condition: service_healthy
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    expose:
+      - "4444"
+    volumes:
+      - ./configs:/configs
+    entrypoint: [
+      "server",
+      "-components_config",
+      "/configs/textservices/admin.components.config",
+      "-services_config",
+      "/configs/grr_frontend.service",
+      "-alsologtostderr",
+      "-v",
+      "1000"
+    ]
+
+  fleetspeak-frontend:
+    image: ghcr.io/google/fleetspeak:latest
+    container_name: fleetspeak-frontend
+    hostname: fleetspeak-frontend
+    depends_on:
+      grr-db:
+        condition: service_healthy
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    expose:
+      - "4443"
+      - "10000"
+    volumes:
+      - ./configs:/configs
+    entrypoint: [
+      "server",
+      "-components_config",
+      "/configs/textservices/frontend.components.config",
+      "-services_config",
+      "/configs/grr_frontend.service",
+      "-alsologtostderr",
+      "-v",
+      "1000"
+    ]
+
+  grr-worker:
+    image: ghcr.io/google/grr:latest
+    container_name: grr-worker
+    volumes:
+      - ./configs:/configs
+    hostname: grr-worker
+    depends_on:
+      grr-db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - -component
+      - worker
+      - -config
+      - /configs/grr.server.yaml
+      - --verbose
