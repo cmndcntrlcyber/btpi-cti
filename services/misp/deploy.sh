@@ -61,16 +61,43 @@ for container in redis misp-db misp-modules misp-core; do
     fi
 done
 
-# Ensure MISP volumes are clean to prevent initialization issues
-echo "Cleaning existing MISP database volume..."
-docker volume rm misp_data >/dev/null 2>&1 || true
-docker volume create misp_data >/dev/null 2>&1
+# Clean MISP volumes only if requested
+if [ "$1" == "--clean" ] || [ "$1" == "-c" ]; then
+    echo -e "${YELLOW}Cleaning MISP database volume...${NC}"
+    docker volume rm misp_data >/dev/null 2>&1 || true
+    docker volume create misp_data >/dev/null 2>&1
+    echo -e "${GREEN}✓${NC} MISP database volume cleaned"
+else
+    echo "Using existing MISP volumes (use --clean for a fresh start)"
+fi
 
-# Deploy the service
-echo "Deploying MISP services..."
+# Deploy database and redis first
+echo "Deploying MISP database and Redis services..."
 docker-compose up -d misp-db redis
-echo "Waiting for MySQL to initialize (30 seconds)..."
-sleep 30
+
+# Wait for MySQL to initialize
+echo "Waiting for MySQL to initialize..."
+attempt=0
+max_attempts=30
+while [ $attempt -lt $max_attempts ]; do
+    # Try to ping the database
+    if docker exec misp-db mysqladmin ping -h localhost -u misp -p"$(cat ../../secrets/misp_mysql_password)" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} MISP database is ready."
+        break
+    fi
+    
+    attempt=$((attempt+1))
+    echo "Waiting for MySQL to initialize... ($attempt/$max_attempts)"
+    sleep 10
+    
+    if [ $attempt -eq $max_attempts ]; then
+        echo -e "${YELLOW}⚠${NC} Timed out waiting for MySQL to initialize."
+        echo -e "${YELLOW}⚠${NC} Proceeding with deployment, but MISP may not start correctly."
+    fi
+done
+
+# Deploy MISP core and modules
+echo "Deploying MISP core and modules..."
 docker-compose up -d misp-core misp-modules
 
 # Wait for MISP to become available

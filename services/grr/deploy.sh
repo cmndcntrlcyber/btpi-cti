@@ -59,11 +59,44 @@ for container in grr-db grr-admin-ui grr-fleetspeak-frontend fleetspeak-admin fl
     fi
 done
 
-# Deploy the service
-echo "Deploying GRR Rapid Response services..."
+# Clean MySQL data volume if requested
+if [ "$1" == "--clean" ] || [ "$1" == "-c" ]; then
+    echo -e "${YELLOW}Cleaning GRR MySQL data volume...${NC}"
+    docker volume rm db_data >/dev/null 2>&1 || true
+    docker volume create db_data >/dev/null 2>&1
+    echo -e "${GREEN}✓${NC} Database volume cleaned"
+fi
+
+# Deploy MySQL first and wait for it to become healthy
+echo "Starting MySQL database..."
+docker-compose up -d grr-db
+
+# Wait for MySQL to initialize
+echo "Waiting for MySQL to initialize (this may take a few minutes)..."
+attempt=0
+max_attempts=30
+while [ $attempt -lt $max_attempts ]; do
+    if docker ps --format '{{.Status}}' | grep -q "grr-db.*healthy"; then
+        echo -e "${GREEN}✓${NC} MySQL database is healthy."
+        break
+    fi
+    
+    attempt=$((attempt+1))
+    echo "Waiting for MySQL to become healthy... ($attempt/$max_attempts)"
+    sleep 10
+    
+    if [ $attempt -eq $max_attempts ]; then
+        echo -e "${RED}✗${NC} Timed out waiting for MySQL database to become healthy."
+        echo -e "${YELLOW}⚠${NC} Try running with --clean flag: sudo ./deploy.sh --clean"
+        exit 1
+    fi
+done
+
+# Deploy other services
+echo "Deploying remaining GRR Rapid Response services..."
 docker-compose up -d
 
-# Check if GRR Admin UI is running
+# Wait for GRR Admin UI
 echo "Waiting for GRR Admin UI to start (this may take a few minutes)..."
 attempt=0
 max_attempts=30

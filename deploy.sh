@@ -60,7 +60,8 @@ cd "$SCRIPT_DIR"
 # Deploy GRR
 echo -e "\n${BLUE}Step 3: Deploying GRR Rapid Response...${NC}"
 cd "$SCRIPT_DIR/services/grr"
-./deploy.sh
+# Use --clean flag to ensure clean database initialization
+./deploy.sh --clean
 cd "$SCRIPT_DIR"
 
 # Deploy TheHive
@@ -72,7 +73,8 @@ cd "$SCRIPT_DIR"
 # Deploy MISP
 echo -e "\n${BLUE}Step 5: Deploying MISP...${NC}"
 cd "$SCRIPT_DIR/services/misp"
-./deploy.sh
+# Use --clean flag to ensure clean database initialization
+./deploy.sh --clean
 cd "$SCRIPT_DIR"
 
 # Deploy Integration API
