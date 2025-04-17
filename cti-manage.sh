@@ -80,6 +80,7 @@ check_docker() {
     if ! command -v docker-compose &> /dev/null; then
         log "ERROR" "Docker Compose is not installed or not in PATH"
         exit 1
+    fi
 }
 
 # Show status of all components
@@ -125,10 +126,9 @@ stop_components() {
 
 # Restart all components
 restart_components() {
-    log "INFO" "Restarting with updated images..."
-    docker-compose up -d
-    
-    log "SUCCESS" "All components updated to latest versions"
+    log "INFO" "Restarting CTI infrastructure components..."
+    docker-compose restart
+    log "INFO" "All components restarted"
 }
 
 # Show logs for components
@@ -204,9 +204,29 @@ check_health() {
     
     # Check disk space
     log "INFO" "Checking disk space..."
-    disk_usage=$(df -h | grep -E '/ting CTI infrastructure components..."
-    docker-compose restart
-    log "INFO" "All components restarted"
+    disk_usage=$(df -h | grep / | awk '{print $5}' | sed 's/%//')
+    if [ "$disk_usage" -gt 90 ]; then
+        log "WARNING" "Disk space is critically low: ${disk_usage}%"
+    elif [ "$disk_usage" -gt 75 ]; then
+        log "WARNING" "Disk space is running low: ${disk_usage}%"
+    else
+        log "SUCCESS" "Disk space is adequate: ${disk_usage}%"
+    fi
+    
+    # Check memory usage
+    log "INFO" "Checking memory usage..."
+    memory_free=$(free -m | grep "Mem:" | awk '{print $4}')
+    if [ "$memory_free" -lt 1024 ]; then
+        log "WARNING" "Available memory is low: ${memory_free}MB"
+    else
+        log "SUCCESS" "Available memory is adequate: ${memory_free}MB"
+    fi
+    
+    # Check Docker resource usage
+    log "INFO" "Checking Docker resource usage..."
+    docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+    
+    log "INFO" "Health checks completed"
 }
 
 # Create a backup
@@ -228,7 +248,7 @@ create_backup() {
     
     # List all volumes used by the infrastructure
     log "INFO" "Identifying volumes to backup..."
-    volumes=$(docker volume ls --filter "name=cti-infrastructure" -q)
+    volumes=$(docker volume ls --filter "name=cti" -q)
     
     # Backup each volume
     log "INFO" "Backing up volumes..."
@@ -342,25 +362,10 @@ update_components() {
     docker-compose pull
     
     # Restart services with new images
-    log "INFO" "Restar | awk '{print $5}' | sed 's/%//')
-    if [ "$disk_usage" -gt 90 ]; then
-        log "WARNING" "Disk space is critically low: ${disk_usage}%"
-    elif [ "$disk_usage" -gt 75 ]; then
-        log "WARNING" "Disk space is running low: ${disk_usage}%"
-    else
-        log "SUCCESS" "Disk space is adequate: ${disk_usage}%"
-    fi
+    log "INFO" "Restarting with updated images..."
+    docker-compose up -d
     
-    # Check memory usage
-    log "INFO" "Checking memory usage..."
-    memory_free=$(free -m | grep "Mem:" | awk '{print $4}')
-    if [ "$memory_free" -lt 1024 ]; then
-        log "WARNING" "Available memory is low: ${memory_free}MB"
-    else
-        log "SUCCESS" "Available memory is adequate: ${memory_free}MB"
-    fi
-    
-    log "INFO" "Health checks completed"
+    log "SUCCESS" "All components updated to latest versions"
 }
 
 # Show configuration
@@ -540,142 +545,4 @@ case $command in
         ;;
 esac
 
-exit 0ting CTI infrastructure components..."
-    docker-compose restart
-    log "INFO" "All components restarted"
-}
-
-# Create a backup
-create_backup() {
-    local timestamp=$(date +"%Y%m%d_%H%M%S")
-    local backup_file="$BACKUP_DIR/cti_backup_$timestamp.tar.gz"
-    
-    log "INFO" "Creating backup of CTI infrastructure data..."
-    
-    # Create a directory for temporary files
-    local temp_dir=$(mktemp -d)
-    
-    # Export container configurations
-    log "INFO" "Exporting container configurations..."
-    docker-compose config > "$temp_dir/docker-compose-export.yml"
-    
-    # Create a directory for volume data
-    mkdir -p "$temp_dir/volumes"
-    
-    # List all volumes used by the infrastructure
-    log "INFO" "Identifying volumes to backup..."
-    volumes=$(docker volume ls --filter "name=cti-infrastructure" -q)
-    
-    # Backup each volume
-    log "INFO" "Backing up volumes..."
-    for volume in $volumes; do
-        log "INFO" "Backing up volume: $volume"
-        
-        # Create a temporary container to access the volume data
-        docker run --rm -v $volume:/source -v $temp_dir/volumes:/backup alpine \
-            sh -c "cd /source && tar cf /backup/$volume.tar ."
-    done
-    
-    # Package everything into a single archive
-    log "INFO" "Creating final backup archive..."
-    tar -czf "$backup_file" -C "$temp_dir" .
-    
-    # Clean up
-    rm -rf "$temp_dir"
-    
-    log "SUCCESS" "Backup created: $backup_file"
-    
-    # Create a manifest file with metadata
-    cat > "$backup_file.manifest" << EOF
-Backup Date: $(date)
-Components: GRR, TheHive, Cortex, MISP, Portainer
-Docker Compose Version: $(docker-compose version --short)
-Docker Version: $(docker --version | awk '{print $3}' | sed 's/,//')
-Host: $(hostname)
-Size: $(du -h "$backup_file" | awk '{print $1}')
-EOF
-
-    log "INFO" "Backup manifest created: $backup_file.manifest"
-}
-
-# Restore from a backup
-restore_backup() {
-    local backup_file=$1
-    
-    if [ -z "$backup_file" ]; then
-        log "ERROR" "No backup file specified"
-        echo "Available backups:"
-        ls -lh "$BACKUP_DIR" | grep -E '\.tar\.gz$'
-        exit 1
-    fi
-    
-    if [ ! -f "$backup_file" ]; then
-        # Check if it might be in the backup directory
-        if [ -f "$BACKUP_DIR/$backup_file" ]; then
-            backup_file="$BACKUP_DIR/$backup_file"
-        else
-            log "ERROR" "Backup file not found: $backup_file"
-            exit 1
-        fi
-    fi
-    
-    log "WARNING" "Restoring will stop all running containers and replace current data"
-    read -p "Are you sure you want to continue? (y/N) " confirm
-    if [[ $confirm != [yY] ]]; then
-        log "INFO" "Restore cancelled"
-        exit 0
-    fi
-    
-    # Stop all containers
-    log "INFO" "Stopping all containers..."
-    docker-compose down
-    
-    # Create a temporary directory for extraction
-    local temp_dir=$(mktemp -d)
-    
-    # Extract the backup
-    log "INFO" "Extracting backup archive..."
-    tar -xzf "$backup_file" -C "$temp_dir"
-    
-    # Restore docker-compose configuration
-    log "INFO" "Restoring container configurations..."
-    if [ -f "$temp_dir/docker-compose-export.yml" ]; then
-        cp "$temp_dir/docker-compose-export.yml" docker-compose.yml
-    fi
-    
-    # Restore each volume
-    log "INFO" "Restoring volumes..."
-    for tar_file in "$temp_dir/volumes"/*.tar; do
-        if [ -f "$tar_file" ]; then
-            volume_name=$(basename "$tar_file" .tar)
-            log "INFO" "Restoring volume: $volume_name"
-            
-            # Ensure volume exists
-            docker volume create "$volume_name" &> /dev/null || true
-            
-            # Restore data to volume
-            docker run --rm -v $volume_name:/dest -v "$temp_dir/volumes:/backup" alpine \
-                sh -c "cd /dest && tar xf /backup/$(basename $tar_file) ."
-        fi
-    done
-    
-    # Clean up
-    rm -rf "$temp_dir"
-    
-    # Restart containers
-    log "INFO" "Starting containers with restored data..."
-    docker-compose up -d
-    
-    log "SUCCESS" "Restore completed from: $backup_file"
-}
-
-# Update all components
-update_components() {
-    log "INFO" "Updating CTI infrastructure components..."
-    
-    # Pull latest images
-    log "INFO" "Pulling latest images..."
-    docker-compose pull
-    
-    # Restart services with new images
-    log "INFO" "Restar
+exit 0

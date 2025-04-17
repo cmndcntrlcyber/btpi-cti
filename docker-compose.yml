@@ -3,6 +3,10 @@ version: '3.8'
 networks:
   cti-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
 
 volumes:
   db_data: # GRR MySQL data
@@ -14,22 +18,31 @@ volumes:
   misp_data: # For MISP
   portainer_data: # For Portainer
   kasm_data: # For Kasm Workspaces
+  redis_data: # For Redis persistence
 
 services:
   # === Portainer for container management ===
   portainer:
-    image: portainer/portainer-ce:2.21.0
+    image: portainer/portainer-ce:latest
     container_name: portainer
-    restart: always
+    restart: unless-stopped
     ports:
       - "8000:8000"
-      - "9000:9000"
+      - "9000:9000" 
       - "9443:9443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - portainer_data:/data
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 
   # === GRR MySQL Database ===
   grr-db:
@@ -41,20 +54,25 @@ services:
       - --log_bin_trust_function_creators=1
       - --innodb_redo_log_capacity=167772160
       - --innodb_log_file_size=2500M
-    restart: always
+    restart: unless-stopped
     environment:
-      - MYSQL_ROOT_PASSWORD=grr_root_password
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password
       - MYSQL_DATABASE=grr
       - MYSQL_USER=grr
-      - MYSQL_PASSWORD=grr_password
+      - MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
     volumes:
       - db_data:/var/lib/mysql:rw
+      - ./secrets/mysql_root_password:/run/secrets/mysql_root_password:ro
+      - ./secrets/mysql_password:/run/secrets/mysql_password:ro
     ports:
       - "3306:3306"
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "grr", "-p$$(cat /run/secrets/mysql_password)"]
+      interval: 5s
       timeout: 5s
       retries: 10
 
@@ -75,6 +93,8 @@ services:
       - "8001:8000"
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
     entrypoint: [
       "/bin/bash",
       "-c",
@@ -82,8 +102,10 @@ services:
     ]
     healthcheck:
       test: "/configs/healthchecks/grr-admin-ui.sh"
+      interval: 30s
       timeout: 10s
-      retries: 10
+      retries: 5
+      start_period: 30s
 
   grr-fleetspeak-frontend:
     image: ghcr.io/google/grr:latest
@@ -96,9 +118,11 @@ services:
       - ./grr_configs:/configs
     expose:
       - "11111"
-    restart: always
+    restart: unless-stopped
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
     command:
       - -component
       - frontend
@@ -115,6 +139,8 @@ services:
         condition: service_healthy
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
     expose:
       - "4444"
     volumes:
@@ -139,6 +165,8 @@ services:
         condition: service_healthy
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
     expose:
       - "4443"
       - "10000"
@@ -164,9 +192,11 @@ services:
     depends_on:
       grr-db:
         condition: service_healthy
-    restart: always
+    restart: unless-stopped
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
     command:
       - -component
       - worker
@@ -176,10 +206,10 @@ services:
 
   # === TheHive Components ===
   cassandra:
-    image: 'cassandra:4'
+    image: 'cassandra:latest'
     container_name: cassandra
     hostname: cassandra
-    mem_limit: 1600m
+    mem_limit: 2048m
     ports:
       - "9042:9042"
     environment:
@@ -188,76 +218,128 @@ services:
       - CASSANDRA_CLUSTER_NAME=TheHive
     volumes:
       - cassandra_data:/var/lib/cassandra
-    restart: on-failure
+    restart: unless-stopped
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status | grep -q '^UN'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.12
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.16
     container_name: elasticsearch
     hostname: elasticsearch
-    mem_limit: 1500m
+    mem_limit: 2048m
     ports:
       - "9200:9200"
       - "9300:9300"
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - bootstrap.memory_lock=true
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
+      - ./secrets/elastic_password:/run/secrets/elastic_password:ro
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   minio:
-    image: quay.io/minio/minio
+    image: quay.io/minio/minio:latest
     container_name: minio
     hostname: minio
-    mem_limit: 512m
-    command: ["minio", "server", "/data", "--console-address", ":9090"]
+    mem_limit: 1024m
+    command: ["server", "/data", "--console-address", ":9090"]
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_ROOT_USER_FILE=/run/secrets/minio_root_user
+      - MINIO_ROOT_PASSWORD_FILE=/run/secrets/minio_root_password
     ports:
       - "10000:9000"  # Changed from 9000 to avoid conflict with TheHive
       - "9090:9090"   # Minio console
     volumes:
       - minio_data:/data
+      - ./secrets/minio_root_user:/run/secrets/minio_root_user:ro
+      - ./secrets/minio_root_password:/run/secrets/minio_root_password:ro
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   cortex:
-    image: thehiveproject/cortex:3.1.7
+    image: thehiveproject/cortex:latest
     container_name: cortex
     hostname: cortex
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     environment:
       - job_directory=/tmp/cortex-jobs
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /tmp/cortex-jobs:/tmp/cortex-jobs
     ports:
       - "9001:9001"
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   thehive:
-    image: strangebee/thehive:5.2
+    image: strangebee/thehive:latest
     container_name: thehive
     hostname: thehive
     depends_on:
-      - cassandra
-      - elasticsearch
-      - minio
-      - cortex
-    mem_limit: 1500m
+      cassandra:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      cortex:
+        condition: service_healthy
+    mem_limit: 2048m
     ports:
       - "9000:9000"
     environment:
-      - JVM_OPTS=-Xms1024M -Xmx1024M
+      - JVM_OPTS=-Xms1536M -Xmx1536M
+    volumes:
+      - ./thehive-application.conf:/etc/thehive/application.conf:ro
     command:
-      - --secret
-      - "mySecretForTheHive"
+      - --secret-file
+      - /run/secrets/thehive_secret
       - "--cql-hostnames"
       - "cassandra"
       - "--index-backend"
@@ -266,20 +348,32 @@ services:
       - "elasticsearch"
       - "--s3-endpoint"
       - "http://minio:9000"
-      - "--s3-access-key"
-      - "minioadmin"
-      - "--s3-secret-key"
-      - "minioadmin"
+      - "--s3-access-key-file"
+      - "/run/secrets/minio_root_user"
+      - "--s3-secret-key-file"
+      - "/run/secrets/minio_root_password"
       - "--s3-bucket"
       - "thehive"
       - "--s3-use-path-access-style"
       - "--cortex-hostnames"
       - "cortex"
-      - "--cortex-keys"
-      # Replace with actual Cortex API key once bootstrapped
-      - "CORTEX_API_KEY_HERE"
+      - "--cortex-keys-file"
+      - "/run/secrets/cortex_api_key"
+    secrets:
+      - thehive_secret
+      - minio_root_user
+      - minio_root_password
+      - cortex_api_key
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   # === MISP Components ===
   misp-core:
@@ -289,22 +383,36 @@ services:
     ports:
       - "8080:80"
       - "443:443"
-    volumes:
-      - misp_data:/var/www/MISP/app/files
     environment:
       - MYSQL_HOST=misp-db
       - MYSQL_DATABASE=misp
       - MYSQL_USER=misp
-      - MYSQL_PASSWORD=misp
+      - MYSQL_PASSWORD_FILE=/run/secrets/misp_mysql_password
+      - MISP_ADMIN_EMAIL=admin@example.com
+      - MISP_ADMIN_PASSWORD_FILE=/run/secrets/misp_admin_password
+      - REDIS_FQDN=redis
+    volumes:
+      - misp_data:/var/www/MISP/app/files
+      - ./secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
+      - ./secrets/misp_admin_password:/run/secrets/misp_admin_password:ro
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       - misp-db
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/users/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   misp-modules:
     image: ghcr.io/misp/misp-docker/misp-modules:latest
     container_name: misp-modules
-    restart: always
+    restart: unless-stopped
     environment:
       - REDIS_BACKEND=redis
     depends_on:
@@ -312,39 +420,86 @@ services:
       - misp-core
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
 
   misp-db:
     image: mysql:8.0
     container_name: misp-db
-    restart: always
+    restart: unless-stopped
     environment:
-      - MYSQL_ROOT_PASSWORD=misp_root_password
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/misp_root_password
       - MYSQL_DATABASE=misp
       - MYSQL_USER=misp
-      - MYSQL_PASSWORD=misp
+      - MYSQL_PASSWORD_FILE=/run/secrets/misp_mysql_password
     volumes:
       - misp_data:/var/lib/mysql
+      - ./secrets/misp_root_password:/run/secrets/misp_root_password:ro
+      - ./secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "misp", "-p$$(cat /run/secrets/misp_mysql_password)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:alpine
     container_name: redis
-    restart: always
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
     networks:
       - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # === Kasm Workspaces setup ===
-  # This is a placeholder. Due to Kasm's complex setup requirements,
-  # it's better to run the installer script separately as shown in your document
-  # You can uncomment and use this section if you create a custom Kasm image
-  # kasm:
-  #   image: kasmweb/kasm:1.15.0
-  #   container_name: kasm
-  #   volumes:
-  #     - kasm_data:/opt/kasm/data
-  #   ports:
-  #     - "3000:3000"
-  #     - "443:443"
-  #   networks:
-  #     - cti-network
+  # Integration helper
+  integration-api:
+    image: nginx:alpine
+    container_name: cti-integration-api
+    restart: unless-stopped
+    volumes:
+      - ./integrations:/usr/share/nginx/html:ro
+      - ./configs/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8888:80"
+    networks:
+      - cti-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+secrets:
+  mysql_root_password:
+    file: ./secrets/mysql_root_password
+  mysql_password:
+    file: ./secrets/mysql_password
+  elastic_password:
+    file: ./secrets/elastic_password
+  minio_root_user:
+    file: ./secrets/minio_root_user
+  minio_root_password:
+    file: ./secrets/minio_root_password
+  thehive_secret:
+    file: ./secrets/thehive_secret
+  cortex_api_key:
+    file: ./secrets/cortex_api_key
+  misp_root_password:
+    file: ./secrets/misp_root_password
+  misp_mysql_password:
+    file: ./secrets/misp_mysql_password
+  misp_admin_password:
+    file: ./secrets/misp_admin_password

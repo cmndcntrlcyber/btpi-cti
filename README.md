@@ -19,7 +19,26 @@ This project provides a comprehensive, ready-to-deploy Cyber Threat Intelligence
 
 The architecture is designed to be modular and integrates all components within a common Docker network:
 
-
+```
+┌────────────────────────────────────────────────────────────────┐
+│                        CTI Infrastructure                      │
+│                                                                │
+│  ┌──────────┐        ┌──────────┐        ┌──────────┐          │
+│  │   GRR    │◄──────►│  TheHive │◄──────►│  Cortex  │          │
+│  └──────────┘        └──────────┘        └──────────┘          │
+│        ▲                   ▲                   ▲               │
+│        │                   │                   │               │
+│        │              ┌──────────┐             │               │
+│        └──────────────┤   MISP   ├─────────────┘               │
+│                       └──────────┘                             │
+│                            ▲                                   │
+│  ┌──────────┐              │              ┌──────────┐         │
+│  │  Kasm    │◄─────────────┴──────────────┤Portainer │         │
+│  │Workspaces│                             │          │         │
+│  └──────────┘                             └──────────┘         │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
 
 ## System Requirements
 
@@ -40,14 +59,52 @@ The setup script will prepare your environment, download necessary components, a
 ```bash
 # Clone the repository
 git clone https://github.com/cmndcntrlcyber/btpi-cti.git
-cd cti-infrastructure
+cd btpi-cti
+
+# Create the required secrets directory
+mkdir -p secrets
+
+# Generate secure passwords
+cat << EOF > secrets/mysql_root_password
+$(openssl rand -base64 16)
+EOF
+cat << EOF > secrets/mysql_password
+$(openssl rand -base64 16)
+EOF
+cat << EOF > secrets/elastic_password
+$(openssl rand -base64 16)
+EOF
+cat << EOF > secrets/minio_root_user
+minioadmin
+EOF
+cat << EOF > secrets/minio_root_password
+$(openssl rand -base64 16)
+EOF
+cat << EOF > secrets/thehive_secret
+$(openssl rand -base64 32)
+EOF
+cat << EOF > secrets/cortex_api_key
+API-KEY-PLACEHOLDER-REPLACE-AFTER-SETUP
+EOF
+cat << EOF > secrets/misp_root_password
+$(openssl rand -base64 16)
+EOF
+cat << EOF > secrets/misp_mysql_password
+$(openssl rand -base64 16)
+EOF
+cat << EOF > secrets/misp_admin_password
+$(openssl rand -base64 16)
+EOF
+
+# Secure the password files
+chmod 600 secrets/*
 
 # Run the setup script
-chmod +x setup.sh
-./setup.sh
+chmod +x deploy.sh
+./deploy.sh
 
-# Deploy the infrastructure
-sudo ./deploy.sh
+# Manage the infrastructure
+./cti-manage.sh
 ```
 
 ### 2. Using Docker Compose Directly
@@ -57,10 +114,15 @@ If you already have Docker and Docker Compose installed:
 ```bash
 # Clone the repository
 git clone https://github.com/cmndcntrlcyber/btpi-cti.git
-cd cti-infrastructure
+cd btpi-cti
+
+# Create and prepare secrets (see steps above)
 
 # Start the infrastructure
 docker-compose up -d
+
+# Check status
+docker-compose ps
 ```
 
 ### 3. Using the DEB Package
@@ -69,11 +131,16 @@ On Debian-based systems, you can install the infrastructure as a package:
 
 ```bash
 # Download the package
-wget https://github.com/your-org/cti-infrastructure/releases/download/v1.0.0/cti-infrastructure_1.0.0_all.deb
+wget https://github.com/cmndcntrlcyber/btpi-cti/releases/download/v1.0.0/btpi-cti_1.0.0_all.deb
 
 # Install the package
-sudo dpkg -i cti-infrastructure_1.0.0_all.deb
+sudo dpkg -i btpi-cti_1.0.0_all.deb
 sudo apt-get install -f
+
+# Create and prepare secrets directory
+sudo mkdir -p /opt/btpi-cti/secrets
+# Generate all secrets as shown above
+sudo chmod 600 /opt/btpi-cti/secrets/*
 
 # Deploy the infrastructure
 sudo deploy-cti
@@ -88,62 +155,82 @@ sudo deploy-cti
 3. Navigate to Organizations → Create a new organization (e.g., "CTI")
 4. Create a new user with "read, analyze, orgadmin" roles
 5. Generate an API key for this user
-6. Update the docker-compose.yml file with this API key:
-   ```yaml
-   thehive:
-     # other settings...
-     command:
-       # other settings...
-       - "--cortex-keys"
-       - "YOUR_API_KEY_HERE"   # Replace with your actual API key
+6. Update the cortex_api_key secret:
+   ```bash
+   echo "YOUR_CORTEX_API_KEY" > secrets/cortex_api_key
+   chmod 600 secrets/cortex_api_key
    ```
 7. Restart TheHive: `docker-compose restart thehive`
 
 ### MISP Configuration
 
 1. Access MISP at http://localhost:8080
-2. Default credentials are admin@admin.test / admin
+2. Login with the credentials:
+   - Username: admin@admin.test
+   - Password: (value stored in `secrets/misp_admin_password`)
 3. Change the default password immediately
 4. Configure MISP according to your organization's needs
 
 ### GRR Configuration
 
 1. Access GRR at http://localhost:8001
-2. Create an administrator account
+2. Create an administrator account using the setup wizard
 3. Download client installers for deployment to endpoints
 
 ### Kasm Workspaces Setup
 
 ```bash
 # Run the Kasm installer
-./install_kasm.sh
+./kasm-builder.sh --build-all
 ```
 
 After installation:
 1. Access Kasm at https://localhost:443 or the IP of your server
 2. Log in with the credentials provided during installation
-3. Deploy the custom Threat Hunting workspace using the provided Dockerfile
+3. Deploy the custom workspaces using the administration interface
 
-## Custom Threat Hunting Workspace
+## Custom Workspaces
 
-This project includes a specialized Kasm workspace for threat hunting with pre-installed tools:
+### Threat Hunting Workspace
 
-- OSINT tools (Shodan, Censys, etc.)
-- Threat intelligence tools
-- Analysis utilities
-- Multiple browsers for investigative work
-- Integration shortcuts to TheHive, Cortex, MISP, and GRR
+Specialized for threat hunting operations with pre-installed tools:
+- Advanced OSINT capabilities
+- Integrated with TheHive, Cortex, and MISP
+- Custom functions for intelligence gathering
+- CyberChef for data analysis
+- Multiple browsers for OSINT work
 
-To build and deploy the custom workspace:
-
+To build manually:
 ```bash
-# Build the image
-docker build -t cti-threat-hunting -f kasm-threat-hunting.Dockerfile .
+docker build -t kasm-threat-hunting -f kasm-images/threat-hunting.Dockerfile .
+```
 
-# Add to Kasm workspaces through the admin interface
-# URL: http://localhost:3000
-# Go to Workspaces → Add Workspace → Custom (Docker Registry)
-# Image: cti-threat-hunting:latest
+### Malware Analysis Workspace
+
+Secure environment for malware analysis:
+- Ghidra, Radare2, and Cutter
+- Python analysis frameworks
+- Isolated environment for samples
+- Analysis scripts and automation
+- VirusTotal integration
+
+To build manually:
+```bash
+docker build -t kasm-malware-analysis -f kasm-images/malware-analysis.Dockerfile .
+```
+
+### OSINT Investigation Workspace
+
+Optimized for open source intelligence gathering:
+- Multiple specialized search tools
+- People & company research tools
+- Domain/IP investigation capabilities
+- Email and username trackers
+- Social media investigation tools
+
+To build manually:
+```bash
+docker build -t kasm-osint -f kasm-images/osint.Dockerfile .
 ```
 
 ## Integration Points
@@ -177,15 +264,56 @@ docker build -t cti-threat-hunting -f kasm-threat-hunting.Dockerfile .
    - Check logs: `docker logs [container_name]`
    - Verify resource availability: `free -m` and `df -h`
    - Ensure ports are not in use: `netstat -tulpn`
+   - Run the health check script: `./cti-manage.sh health`
 
 2. **Integration issues between components**:
-   - Verify all containers are on the same network: `docker network inspect cti-network`
-   - Check API keys are correctly configured
-   - Ensure hostname resolution is working
+   - Check if containers are on the same network: `docker network inspect cti-network`
+   - Verify API keys are correct in the secrets directory
+   - Check the integration-api container status: `docker logs cti-integration-api`
 
-3. **Kasm Workspaces issues**:
-   - Run the diagnostic tool: `sudo /opt/kasm/bin/kasm_diagnostics`
-   - Check browser compatibility for the admin interface
+3. **Container healthcheck failures**:
+   - Check container logs: `docker logs [container_name]`
+   - Verify container environment variables and secrets paths
+   - Check resource constraints: `docker stats`
+   - Look for configuration file issues
+
+4. **TheHive/Cortex connectivity issues**:
+   - Verify Elasticsearch is running: `curl http://localhost:9200/_cluster/health`
+   - Check Cassandra status: `docker exec -it cassandra nodetool status`
+   - Verify the cortex_api_key is correctly set in secrets
+
+5. **MISP issues**:
+   - Check MySQL connectivity: `docker exec -it misp-db mysqladmin ping`
+   - Verify Redis is functioning: `docker exec -it redis redis-cli ping`
+   - Check MISP logs: `docker logs misp-core`
+
+6. **Kasm Workspaces issues**:
+   - Verify Docker images were built correctly
+   - Check configuration of browser shortcuts
+   - Verify desktop environment is functioning
+   - Check file permissions on shared resources
+
+### Using the Management Script
+
+```bash
+# Show component status
+./cti-manage.sh status
+
+# View logs for a specific component
+./cti-manage.sh logs thehive
+
+# Run health checks 
+./cti-manage.sh health
+
+# Restart components
+./cti-manage.sh restart
+
+# Create a backup
+./cti-manage.sh backup
+
+# Restore from a backup
+./cti-manage.sh restore [backup_file]
+```
 
 ### Support Resources
 
@@ -200,12 +328,17 @@ docker build -t cti-threat-hunting -f kasm-threat-hunting.Dockerfile .
 
 ### Backup Strategy
 
+Use the management script for regular backups:
+
 ```bash
-# Backup all volumes
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):/backup \
-  alpine sh -c "docker run --rm --volumes-from $(docker ps -q) -v /backup:/backup \
-  alpine sh -c 'cd / && tar czf /backup/cti-volumes-backup.tar.gz \
-  /var/lib/docker/volumes/'"
+# Create a backup
+./cti-manage.sh backup
+
+# View available backups
+ls -la backups/
+
+# Restore from a backup
+./cti-manage.sh restore backups/cti_backup_20250401_120000.tar.gz
 ```
 
 ### Updating Components
@@ -213,11 +346,11 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):/backup \
 To update the infrastructure to the latest versions:
 
 ```bash
-# Pull latest images
-docker-compose pull
+# Update all components
+./cti-manage.sh update
 
-# Recreate containers
-docker-compose up -d
+# View current component versions
+./cti-manage.sh config
 ```
 
 ## Extending the Infrastructure
@@ -258,24 +391,3 @@ This project integrates and builds upon several open-source security tools:
 - [MISP Project](https://www.misp-project.org/)
 - [Kasm Workspaces](https://www.kasmweb.com/)
 - [Portainer](https://www.portainer.io/)
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                        CTI Infrastructure                      │
-│                                                                │
-│  ┌──────────┐        ┌──────────┐        ┌──────────┐          │
-│  │   GRR    │◄──────►│  TheHive │◄──────►│  Cortex  │          │
-│  └──────────┘        └──────────┘        └──────────┘          │
-│        ▲                   ▲                   ▲               │
-│        │                   │                   │               │
-│        │              ┌──────────┐             │               │
-│        └──────────────┤   MISP   ├─────────────┘               │
-│                       └──────────┘                             │
-│                            ▲                                   │
-│  ┌──────────┐              │              ┌──────────┐         │
-│  │  Kasm    │◄─────────────┴──────────────┤Portainer │         │
-│  │Workspaces│                             │          │         │
-│  └──────────┘                             └──────────┘         │
-│                                                                │
-└────────────────────────────────────────────────────────────────┘
-```
