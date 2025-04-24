@@ -23,9 +23,13 @@ fi
 # Navigate to script directory
 cd "$(dirname "$0")"
 
+# Export network variable from environment or default to cti-network
+export NETWORK=${NETWORK:-cti-network}
+export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-btpi_cti}
+
 # Ensure network exists
-if ! docker network inspect cti-network > /dev/null 2>&1; then
-    echo -e "${YELLOW}Required network 'cti-network' does not exist${NC}"
+if ! docker network inspect ${NETWORK} > /dev/null 2>&1; then
+    echo -e "${YELLOW}Required network '${NETWORK}' does not exist${NC}"
     echo -e "${YELLOW}Please run the create-network.sh script first${NC}"
     exit 1
 fi
@@ -181,10 +185,10 @@ EOF
 done
 
 # Stop and remove existing containers if they exist
-if docker ps -a --format '{{.Names}}' | grep -q "^cti-integration-api$"; then
+if docker ps -a --format '{{.Names}}' | grep -q "^${COMPOSE_PROJECT_NAME}_integration-api$"; then
     echo "Stopping and removing existing integration-api container..."
-    docker stop cti-integration-api >/dev/null 2>&1 || true
-    docker rm cti-integration-api >/dev/null 2>&1 || true
+    docker stop ${COMPOSE_PROJECT_NAME}_integration-api >/dev/null 2>&1 || true
+    docker rm ${COMPOSE_PROJECT_NAME}_integration-api >/dev/null 2>&1 || true
 fi
 
 # Deploy the service
@@ -192,11 +196,11 @@ echo "Deploying Integration API service..."
 docker-compose up -d
 
 # Check if the container is running
-if docker ps --format '{{.Names}}' | grep -q "^cti-integration-api$"; then
+if docker ps --format '{{.Names}}' | grep -q "^${COMPOSE_PROJECT_NAME}_integration-api$"; then
     echo -e "${GREEN}✓${NC} Integration API service deployed successfully!"
     echo -e "  - Integration API available at: http://<your-ip>:8888"
 else
-    echo -e "${RED}✗${NC} Integration API service failed to start. Check logs with 'docker logs cti-integration-api'"
+    echo -e "${RED}✗${NC} Integration API service failed to start. Check logs with 'docker logs ${COMPOSE_PROJECT_NAME}_integration-api'"
     exit 1
 fi
 
