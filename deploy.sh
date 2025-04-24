@@ -178,7 +178,9 @@ fi
 
 # Create Docker network
 echo -e "\n${BLUE}Step 1: Creating Docker network...${NC}"
-./scripts/create-network.sh
+# Make sure the network name is in the environment when running create-network.sh
+export NETWORK=${NETWORK:-cti-network}
+NETWORK=$NETWORK ./scripts/create-network.sh
 
 # Allocate ports dynamically
 echo -e "\n${BLUE}Step 2: Allocating ports...${NC}"
