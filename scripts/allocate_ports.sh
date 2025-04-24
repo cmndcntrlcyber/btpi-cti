@@ -31,12 +31,26 @@ find_free_port() {
   local end_port=$2
   local service_name=$3
   
-  for port in $(seq $start_port $end_port); do
-    if ! netstat -tuln | grep -q ":$port "; then
-      echo "$service_name=$port"
-      return 0
-    fi
-  done
+  # Try using different port-checking commands
+  if command -v netstat > /dev/null 2>&1; then
+    for port in $(seq $start_port $end_port); do
+      if ! netstat -tuln | grep -q ":$port "; then
+        echo "$service_name=$port"
+        return 0
+      fi
+    done
+  elif command -v ss > /dev/null 2>&1; then
+    for port in $(seq $start_port $end_port); do
+      if ! ss -tuln | grep -q ":$port "; then
+        echo "$service_name=$port"
+        return 0
+      fi
+    done
+  else
+    # If neither netstat nor ss is available, just use the start port
+    echo "$service_name=$start_port"
+    return 0
+  fi
   
   # If we get here, no ports were available
   echo "$service_name=$start_port # WARNING: No free ports found in range $start_port-$end_port" >&2

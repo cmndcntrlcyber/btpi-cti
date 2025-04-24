@@ -12,19 +12,27 @@ echo -e "${BLUE}=====================================================${NC}"
 echo -e "${BLUE}      Creating Docker Network for BTPI-CTI Services   ${NC}"
 echo -e "${BLUE}=====================================================${NC}"
 
+# Source the .env file for variables
+if [ -f ../.env ]; then
+    source ../.env
+else
+    echo "Warning: .env file not found, using default network name 'cti-network'"
+    NETWORK="cti-network"
+fi
+
 # Check if the network already exists
-if docker network inspect cti-network > /dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} Network 'cti-network' already exists. Using existing network."
+if docker network inspect ${NETWORK} > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Network '${NETWORK}' already exists. Using existing network."
 else
     # Create the network
-    echo "Creating 'cti-network'..."
+    echo "Creating '${NETWORK}'..."
     docker network create \
         --driver=bridge \
         --subnet=172.20.0.0/16 \
         --gateway=172.20.0.1 \
-        cti-network
+        ${NETWORK}
     
-    echo -e "${GREEN}✓${NC} Network 'cti-network' created successfully."
+    echo -e "${GREEN}✓${NC} Network '${NETWORK}' created successfully."
 fi
 
 echo -e "${BLUE}=====================================================${NC}"

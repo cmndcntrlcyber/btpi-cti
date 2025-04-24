@@ -1,7 +1,7 @@
 version: '3.8'
 
 networks:
-  cti-network:
+  ${NETWORK}:
     external: true
 
 volumes:
@@ -30,7 +30,7 @@ services:
       - ../../secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
       - ../../secrets/misp_admin_password:/run/secrets/misp_admin_password:ro
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     depends_on:
@@ -53,7 +53,7 @@ services:
       - redis
       - misp-core
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
 
@@ -71,7 +71,7 @@ services:
       - ../../secrets/misp_root_password:/run/secrets/misp_root_password:ro
       - ../../secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -92,7 +92,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     healthcheck:

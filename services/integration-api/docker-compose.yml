@@ -1,7 +1,7 @@
 version: '3.8'
 
 networks:
-  cti-network:
+  ${NETWORK}:
     external: true
 
 services:
@@ -16,7 +16,7 @@ services:
     ports:
       - "8888:80"
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     healthcheck:

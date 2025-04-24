@@ -1,7 +1,7 @@
 version: '3.8'
 
 networks:
-  cti-network:
+  ${NETWORK}:
     external: true
 
 volumes:
@@ -33,7 +33,7 @@ services:
     ports:
       - "3306:3306"
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -59,7 +59,7 @@ services:
     ports:
       - "8001:8000"
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     entrypoint: [
@@ -87,7 +87,7 @@ services:
       - "11111"
     restart: unless-stopped
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     command:
@@ -105,7 +105,7 @@ services:
       grr-db:
         condition: service_healthy
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     expose:
@@ -131,7 +131,7 @@ services:
       grr-db:
         condition: service_healthy
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     expose:
@@ -161,7 +161,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     command:
