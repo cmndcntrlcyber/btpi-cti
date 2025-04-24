@@ -13,7 +13,7 @@ services:
   # === TheHive Components ===
   cassandra:
     image: 'cassandra:latest'
-    container_name: cassandra
+    container_name: ${COMPOSE_PROJECT_NAME}_cassandra
     hostname: cassandra
     mem_limit: 2048m
     ports:
@@ -38,7 +38,7 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.16
-    container_name: elasticsearch
+    container_name: ${COMPOSE_PROJECT_NAME}_elasticsearch
     hostname: elasticsearch
     mem_limit: 2048m
     ports:
@@ -73,7 +73,7 @@ services:
 
   minio:
     image: quay.io/minio/minio:latest
-    container_name: minio
+    container_name: ${COMPOSE_PROJECT_NAME}_minio
     hostname: minio
     mem_limit: 1024m
     command: ["server", "/data", "--console-address", ":9090"]
@@ -100,7 +100,7 @@ services:
 
   cortex:
     image: thehiveproject/cortex:latest
-    container_name: cortex
+    container_name: ${COMPOSE_PROJECT_NAME}_cortex
     hostname: cortex
     depends_on:
       elasticsearch:
@@ -125,7 +125,7 @@ services:
 
   thehive:
     image: strangebee/thehive:5.2.7-1
-    container_name: thehive
+    container_name: ${COMPOSE_PROJECT_NAME}_thehive
     hostname: thehive
     depends_on:
       cassandra:

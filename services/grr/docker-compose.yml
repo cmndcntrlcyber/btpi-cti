@@ -13,7 +13,7 @@ services:
   # === GRR MySQL Database ===
   grr-db:
     image: mysql:8.2
-    container_name: grr-db
+    container_name: ${COMPOSE_PROJECT_NAME}_grr-db
     hostname: mysql-host
     command:
       - --default-authentication-plugin=mysql_native_password
@@ -46,7 +46,7 @@ services:
   # === GRR Components ===
   grr-admin-ui:
     image: ghcr.io/google/grr:latest
-    container_name: grr-admin-ui
+    container_name: ${COMPOSE_PROJECT_NAME}_grr-admin-ui
     hostname: admin-ui
     depends_on:
       grr-db:
@@ -76,7 +76,7 @@ services:
 
   grr-fleetspeak-frontend:
     image: ghcr.io/google/grr:latest
-    container_name: grr-fleetspeak-frontend
+    container_name: ${COMPOSE_PROJECT_NAME}_grr-fleetspeak-frontend
     hostname: grr-fleetspeak-frontend
     depends_on:
       grr-db:
@@ -99,7 +99,7 @@ services:
 
   fleetspeak-admin:
     image: ghcr.io/google/fleetspeak:latest
-    container_name: fleetspeak-admin
+    container_name: ${COMPOSE_PROJECT_NAME}_fleetspeak-admin
     hostname: fleetspeak-admin
     depends_on:
       grr-db:
@@ -125,7 +125,7 @@ services:
 
   fleetspeak-frontend:
     image: ghcr.io/google/fleetspeak:latest
-    container_name: fleetspeak-frontend
+    container_name: ${COMPOSE_PROJECT_NAME}_fleetspeak-frontend
     hostname: fleetspeak-frontend
     depends_on:
       grr-db:
@@ -152,7 +152,7 @@ services:
 
   grr-worker:
     image: ghcr.io/google/grr:latest
-    container_name: grr-worker
+    container_name: ${COMPOSE_PROJECT_NAME}_grr-worker
     volumes:
       - ./configs:/configs
     hostname: grr-worker

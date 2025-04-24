@@ -34,8 +34,8 @@ services:
     security_opt:
       - no-new-privileges:true
     depends_on:
-      - ${COMPOSE_PROJECT_NAME}_misp-db
-      - ${COMPOSE_PROJECT_NAME}_redis
+      - misp-db
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/users/login"]
       interval: 30s
@@ -50,8 +50,8 @@ services:
     environment:
       - REDIS_BACKEND=${COMPOSE_PROJECT_NAME}_redis
     depends_on:
-      - ${COMPOSE_PROJECT_NAME}_redis
-      - ${COMPOSE_PROJECT_NAME}_misp-core
+      - redis
+      - misp-core
     networks:
       - ${NETWORK}
     security_opt:
