@@ -24,20 +24,36 @@ else
     NETWORK="cti-network"
 fi
 
-# Check if the network already exists
+# Remove existing network if it exists - to ensure it's created with proper labels
 if docker network inspect ${NETWORK} > /dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} Network '${NETWORK}' already exists. Using existing network."
-else
-    # Create the network
-    echo "Creating '${NETWORK}'..."
-    docker network create \
-        --driver=bridge \
-        --subnet=172.20.0.0/16 \
-        --gateway=172.20.0.1 \
-        ${NETWORK}
+    echo "Removing existing network '${NETWORK}'..."
     
-    echo -e "${GREEN}✓${NC} Network '${NETWORK}' created successfully."
+    # Check if any containers are using the network
+    CONTAINERS=$(docker network inspect ${NETWORK} -f '{{range .Containers}}{{.Name}} {{end}}')
+    
+    if [ ! -z "$CONTAINERS" ]; then
+        echo "Disconnecting containers from network: $CONTAINERS"
+        for container in $CONTAINERS; do
+            docker network disconnect -f ${NETWORK} $container || true
+        done
+    fi
+    
+    # Remove the network
+    docker network rm ${NETWORK} || true
+    echo "Network '${NETWORK}' removed."
 fi
+
+# Create the network with proper labels for Docker Compose
+echo "Creating '${NETWORK}'..."
+docker network create \
+    --driver=bridge \
+    --subnet=172.20.0.0/16 \
+    --gateway=172.20.0.1 \
+    --label com.docker.compose.network=btpi_cti \
+    --label com.docker.compose.project=btpi_cti \
+    ${NETWORK}
+
+echo -e "${GREEN}✓${NC} Network '${NETWORK}' created successfully."
 
 echo -e "${BLUE}=====================================================${NC}"
 echo -e "${GREEN}✓${NC} Network setup complete."
