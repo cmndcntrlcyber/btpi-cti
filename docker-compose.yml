@@ -1,8 +1,9 @@
 version: '3.8'
 
 networks:
-  ${NETWORK}:
+  default:
     driver: bridge
+    name: ${NETWORK}
     ipam:
       config:
         - subnet: 172.20.0.0/16
@@ -34,7 +35,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - portainer_data:/data
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - management
       - all
@@ -70,7 +71,7 @@ services:
     ports:
       - "${GRR_DB_PORT}:3306"
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - grr-backend
       - databases
@@ -99,7 +100,7 @@ services:
     ports:
       - "${GRR_ADMIN_UI_PORT}:8000"
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - grr-frontend
       - frontends
@@ -131,7 +132,7 @@ services:
       - "11111"
     restart: unless-stopped
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - grr-backend
       - backends
@@ -153,7 +154,7 @@ services:
       grr-db:
         condition: service_healthy
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - grr-backend
       - backends
@@ -183,7 +184,7 @@ services:
       grr-db:
         condition: service_healthy
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - grr-backend
       - backends
@@ -217,7 +218,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - grr-backend
       - backends
@@ -247,7 +248,7 @@ services:
       - cassandra_data:/var/lib/cassandra
     restart: unless-stopped
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - thehive-backend
       - databases
@@ -286,7 +287,7 @@ services:
         soft: 65536
         hard: 65536
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - thehive-backend
       - databases
@@ -317,7 +318,7 @@ services:
       - ./secrets/minio_root_user:/run/secrets/minio_root_user:ro
       - ./secrets/minio_root_password:/run/secrets/minio_root_password:ro
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - thehive-backend
       - storage
@@ -346,7 +347,7 @@ services:
     ports:
       - "${CORTEX_PORT}:9001"
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - thehive-frontend
       - frontends
@@ -408,7 +409,7 @@ services:
       - minio_root_password
       - cortex_api_key
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - thehive-frontend
       - frontends
@@ -443,7 +444,7 @@ services:
       - ./secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
       - ./secrets/misp_admin_password:/run/secrets/misp_admin_password:ro
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - misp-frontend
       - frontends
@@ -470,7 +471,7 @@ services:
       - redis
       - misp-core
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - misp-backend
       - backends
@@ -492,7 +493,7 @@ services:
       - ./secrets/misp_root_password:/run/secrets/misp_root_password:ro
       - ./secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - misp-backend
       - databases
@@ -512,7 +513,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - misp-backend
       - storage
@@ -536,7 +537,7 @@ services:
     ports:
       - "${INTEGRATION_API_PORT}:80"
     networks:
-      - ${NETWORK}
+      - default
     profiles:
       - integration
       - frontends
