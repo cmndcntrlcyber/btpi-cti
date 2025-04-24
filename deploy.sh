@@ -194,6 +194,10 @@ fi
 
 # Deploy services
 echo -e "\n${BLUE}Step 3: Deploying BTPI-CTI services...${NC}"
+# Export network name from .env if not already exported
+export NETWORK=${NETWORK:-cti-network}
+echo -e "${YELLOW}Using network: ${NETWORK}${NC}"
+# Run docker-compose with environment variables
 docker-compose $PROFILE_ARG up -d
 
 # Make all scripts executable

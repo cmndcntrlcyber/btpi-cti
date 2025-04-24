@@ -31,30 +31,42 @@ find_free_port() {
   local end_port=$2
   local service_name=$3
   
-  # Try using different port-checking commands
+  # Check if we can use port-checking commands
+  local has_port_checker=false
+  local port_checker=""
+  
   if command -v netstat > /dev/null 2>&1; then
-    for port in $(seq $start_port $end_port); do
-      if ! netstat -tuln | grep -q ":$port "; then
-        echo "$service_name=$port"
-        return 0
-      fi
-    done
+    has_port_checker=true
+    port_checker="netstat"
   elif command -v ss > /dev/null 2>&1; then
-    for port in $(seq $start_port $end_port); do
-      if ! ss -tuln | grep -q ":$port "; then
-        echo "$service_name=$port"
-        return 0
-      fi
-    done
-  else
-    # If neither netstat nor ss is available, just use the start port
+    has_port_checker=true
+    port_checker="ss"
+  fi
+  
+  # If no port checker is available, just use default ports
+  if [ "$has_port_checker" = false ]; then
     echo "$service_name=$start_port"
     return 0
   fi
   
-  # If we get here, no ports were available
-  echo "$service_name=$start_port # WARNING: No free ports found in range $start_port-$end_port" >&2
-  return 1
+  # Check ports using the available tool
+  for port in $(seq $start_port $end_port); do
+    if [ "$port_checker" = "netstat" ]; then
+      if ! netstat -tuln 2>/dev/null | grep -q ":$port "; then
+        echo "$service_name=$port"
+        return 0
+      fi
+    elif [ "$port_checker" = "ss" ]; then
+      if ! ss -tuln 2>/dev/null | grep -q ":$port "; then
+        echo "$service_name=$port"
+        return 0
+      fi
+    fi
+  done
+  
+  # If we get here, no ports were available or checking failed
+  echo "$service_name=$start_port"
+  return 0
 }
 
 # Create temporary file for new env
