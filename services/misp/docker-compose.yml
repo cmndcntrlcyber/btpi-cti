@@ -12,19 +12,19 @@ services:
   # === MISP Components ===
   misp-core:
     image: ghcr.io/misp/misp-docker/misp-core:latest
-    container_name: misp-core
+    container_name: ${COMPOSE_PROJECT_NAME}_misp-core
     hostname: misp
     ports:
       - "8083:80"     # Changed from 8080:80 to avoid conflict with Gophish
       - "8443:443"    # Changed from 443:443 to avoid conflict with Kasm Workspaces
     environment:
-      - MYSQL_HOST=misp-db
+      - MYSQL_HOST=${COMPOSE_PROJECT_NAME}_misp-db
       - MYSQL_DATABASE=misp
       - MYSQL_USER=misp
       - MYSQL_PASSWORD_FILE=/run/secrets/misp_mysql_password
       - MISP_ADMIN_EMAIL=admin@example.com
       - MISP_ADMIN_PASSWORD_FILE=/run/secrets/misp_admin_password
-      - REDIS_FQDN=redis
+      - REDIS_FQDN=${COMPOSE_PROJECT_NAME}_redis
     volumes:
       - misp_data:/var/www/MISP/app/files
       - ../../secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
@@ -34,8 +34,8 @@ services:
     security_opt:
       - no-new-privileges:true
     depends_on:
-      - misp-db
-      - redis
+      - ${COMPOSE_PROJECT_NAME}_misp-db
+      - ${COMPOSE_PROJECT_NAME}_redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/users/login"]
       interval: 30s
@@ -45,13 +45,13 @@ services:
 
   misp-modules:
     image: ghcr.io/misp/misp-docker/misp-modules:latest
-    container_name: misp-modules
+    container_name: ${COMPOSE_PROJECT_NAME}_misp-modules
     restart: unless-stopped
     environment:
-      - REDIS_BACKEND=redis
+      - REDIS_BACKEND=${COMPOSE_PROJECT_NAME}_redis
     depends_on:
-      - redis
-      - misp-core
+      - ${COMPOSE_PROJECT_NAME}_redis
+      - ${COMPOSE_PROJECT_NAME}_misp-core
     networks:
       - ${NETWORK}
     security_opt:
@@ -59,7 +59,7 @@ services:
 
   misp-db:
     image: mysql:8.0
-    container_name: misp-db
+    container_name: ${COMPOSE_PROJECT_NAME}_misp-db
     restart: unless-stopped
     environment:
       - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/misp_root_password
@@ -87,7 +87,7 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: redis
+    container_name: ${COMPOSE_PROJECT_NAME}_redis
     restart: unless-stopped
     volumes:
       - redis_data:/data
