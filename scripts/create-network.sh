@@ -45,12 +45,11 @@ fi
 
 # Create the network with proper labels for Docker Compose
 echo "Creating '${NETWORK}'..."
+# Do not add any Docker Compose specific labels - let Docker Compose manage those
 docker network create \
     --driver=bridge \
     --subnet=172.20.0.0/16 \
     --gateway=172.20.0.1 \
-    --label com.docker.compose.network=btpi_cti \
-    --label com.docker.compose.project=btpi_cti \
     ${NETWORK}
 
 echo -e "${GREEN}✓${NC} Network '${NETWORK}' created successfully."
