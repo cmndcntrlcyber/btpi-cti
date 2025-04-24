@@ -24,14 +24,92 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 
+# Process command line arguments
+ALL_SERVICES=true
+CLEAN_INSTALL=false
+SPECIFIC_PROFILE=""
+
+function print_usage {
+  echo "Usage: $0 [OPTIONS]"
+  echo "Options:"
+  echo "  --all         Deploy all services (default)"
+  echo "  --frontends   Deploy only frontend services"
+  echo "  --backends    Deploy only backend services"
+  echo "  --databases   Deploy only database services"
+  echo "  --management  Deploy only management services"
+  echo "  --thehive     Deploy TheHive, Cortex, and dependencies"
+  echo "  --grr         Deploy GRR services"
+  echo "  --misp        Deploy MISP services"
+  echo "  --clean       Force clean installation (reinitialize volumes)"
+  echo "  --help        Show this help message"
+}
+
+# Parse command line arguments
+for arg in "$@"; do
+  case $arg in
+    --all)
+      ALL_SERVICES=true
+      SPECIFIC_PROFILE=""
+      ;;
+    --frontends)
+      ALL_SERVICES=false
+      SPECIFIC_PROFILE="frontends"
+      ;;
+    --backends)
+      ALL_SERVICES=false
+      SPECIFIC_PROFILE="backends"
+      ;;
+    --databases)
+      ALL_SERVICES=false
+      SPECIFIC_PROFILE="databases"
+      ;;
+    --management)
+      ALL_SERVICES=false
+      SPECIFIC_PROFILE="management"
+      ;;
+    --thehive)
+      ALL_SERVICES=false
+      SPECIFIC_PROFILE="thehive-frontend thehive-backend"
+      ;;
+    --grr)
+      ALL_SERVICES=false
+      SPECIFIC_PROFILE="grr-frontend grr-backend"
+      ;;
+    --misp)
+      ALL_SERVICES=false
+      SPECIFIC_PROFILE="misp-frontend misp-backend"
+      ;;
+    --clean)
+      CLEAN_INSTALL=true
+      ;;
+    --help)
+      print_usage
+      exit 0
+      ;;
+    *)
+      echo -e "${RED}Unknown option: $arg${NC}"
+      print_usage
+      exit 1
+      ;;
+  esac
+done
+
 # Print deployment information
 echo "BTPI-CTI Cyber Threat Intelligence Platform"
 echo "This script will deploy the following services:"
-echo "  - Portainer (Container Management)"
-echo "  - GRR (Rapid Response)"
-echo "  - TheHive (Case Management)"
-echo "  - MISP (Threat Intelligence)"
-echo "  - Integration API"
+
+if [ "$ALL_SERVICES" = true ]; then
+  echo "  - All services (Portainer, GRR, TheHive, MISP, Integration API)"
+  PROFILE_ARG="--profile all"
+else
+  echo "  - Selected profile(s): $SPECIFIC_PROFILE"
+  # Build profile arguments for docker-compose
+  PROFILE_ARG=""
+  for profile in $SPECIFIC_PROFILE; do
+    PROFILE_ARG="$PROFILE_ARG --profile $profile"
+  done
+fi
+
 echo ""
 echo -e "${YELLOW}Note: This deployment may take 15-30 minutes depending on your system.${NC}"
 echo ""
@@ -47,57 +125,91 @@ fi
 # Create secrets directory if it doesn't exist
 mkdir -p secrets
 
+# Check if secrets files exist, create them if they don't
+if [ ! -f secrets/mysql_root_password ]; then
+  echo "Creating random MySQL root password..."
+  openssl rand -base64 16 > secrets/mysql_root_password
+fi
+
+if [ ! -f secrets/mysql_password ]; then
+  echo "Creating random MySQL user password..."
+  openssl rand -base64 16 > secrets/mysql_password
+fi
+
+if [ ! -f secrets/elastic_password ]; then
+  echo "Creating random Elasticsearch password..."
+  openssl rand -base64 16 > secrets/elastic_password
+fi
+
+if [ ! -f secrets/minio_root_user ]; then
+  echo "Creating MinIO root user..."
+  echo "minioadmin" > secrets/minio_root_user
+fi
+
+if [ ! -f secrets/minio_root_password ]; then
+  echo "Creating random MinIO root password..."
+  openssl rand -base64 16 > secrets/minio_root_password
+fi
+
+if [ ! -f secrets/thehive_secret ]; then
+  echo "Creating random TheHive secret key..."
+  openssl rand -base64 32 > secrets/thehive_secret
+fi
+
+if [ ! -f secrets/cortex_api_key ]; then
+  echo "Creating random Cortex API key..."
+  openssl rand -hex 32 > secrets/cortex_api_key
+fi
+
+if [ ! -f secrets/misp_root_password ]; then
+  echo "Creating random MISP root password..."
+  openssl rand -base64 16 > secrets/misp_root_password
+fi
+
+if [ ! -f secrets/misp_mysql_password ]; then
+  echo "Creating random MISP MySQL password..."
+  openssl rand -base64 16 > secrets/misp_mysql_password
+fi
+
+if [ ! -f secrets/misp_admin_password ]; then
+  echo "Creating random MISP admin password..."
+  openssl rand -base64 12 > secrets/misp_admin_password
+fi
+
 # Create Docker network
 echo -e "\n${BLUE}Step 1: Creating Docker network...${NC}"
 ./scripts/create-network.sh
 
-# Deploy Portainer
-echo -e "\n${BLUE}Step 2: Deploying Portainer...${NC}"
-cd "$SCRIPT_DIR/services/portainer"
-./deploy.sh
-cd "$SCRIPT_DIR"
+# Allocate ports dynamically
+echo -e "\n${BLUE}Step 2: Allocating ports...${NC}"
+./scripts/allocate_ports.sh
+# Source the .env file to get port information
+source .env
 
-# Deploy GRR
-echo -e "\n${BLUE}Step 3: Deploying GRR Rapid Response...${NC}"
-cd "$SCRIPT_DIR/services/grr"
-# Use --clean flag to ensure clean database initialization
-./deploy.sh --clean
-cd "$SCRIPT_DIR"
+# Clean installation if requested
+if [ "$CLEAN_INSTALL" = true ]; then
+  echo -e "\n${YELLOW}Performing clean installation. Removing existing volumes...${NC}"
+  docker-compose down -v
+fi
 
-# Deploy TheHive
-echo -e "\n${BLUE}Step 4: Deploying TheHive...${NC}"
-cd "$SCRIPT_DIR/services/thehive"
-./deploy.sh
-cd "$SCRIPT_DIR"
+# Deploy services
+echo -e "\n${BLUE}Step 3: Deploying BTPI-CTI services...${NC}"
+docker-compose $PROFILE_ARG up -d
 
-# Deploy MISP
-echo -e "\n${BLUE}Step 5: Deploying MISP...${NC}"
-cd "$SCRIPT_DIR/services/misp"
-# Use --clean flag to ensure clean database initialization
-./deploy.sh --clean
-cd "$SCRIPT_DIR"
-
-# Deploy Integration API
-echo -e "\n${BLUE}Step 6: Deploying Integration API...${NC}"
-cd "$SCRIPT_DIR/services/integration-api"
-./deploy.sh
-cd "$SCRIPT_DIR"
-
-# Make all deploy scripts executable
-find services -name "deploy.sh" -exec chmod +x {} \;
-chmod +x scripts/*.sh
+# Make all scripts executable
+find scripts -name "*.sh" -exec chmod +x {} \;
 
 # Deployment summary
 echo -e "\n${BLUE}=====================================================${NC}"
 echo -e "${GREEN}BTPI-CTI Deployment Complete!${NC}"
 echo -e "${BLUE}=====================================================${NC}"
 echo "Access your services at:"
-echo -e "  - ${GREEN}Portainer:${NC} http://<your-ip>:9010"
-echo -e "  - ${GREEN}GRR Admin UI:${NC} http://<your-ip>:8001"
-echo -e "  - ${GREEN}TheHive:${NC} http://<your-ip>:9000"
-echo -e "  - ${GREEN}Cortex:${NC} http://<your-ip>:9001" 
-echo -e "  - ${GREEN}MISP:${NC} http://<your-ip>:8083"
-echo -e "  - ${GREEN}Integration API:${NC} http://<your-ip>:8888"
+echo -e "  - ${GREEN}Portainer:${NC} http://<your-ip>:${PORTAINER_PORT}"
+echo -e "  - ${GREEN}GRR Admin UI:${NC} http://<your-ip>:${GRR_ADMIN_UI_PORT}"
+echo -e "  - ${GREEN}TheHive:${NC} http://<your-ip>:${THEHIVE_PORT}"
+echo -e "  - ${GREEN}Cortex:${NC} http://<your-ip>:${CORTEX_PORT}" 
+echo -e "  - ${GREEN}MISP:${NC} http://<your-ip>:${MISP_HTTP_PORT}"
+echo -e "  - ${GREEN}Integration API:${NC} http://<your-ip>:${INTEGRATION_API_PORT}"
 echo ""
 echo "MISP default credentials:"
 echo "  - Username: admin@admin.test"
@@ -106,6 +218,19 @@ echo ""
 echo -e "${YELLOW}Note:${NC} Some services may still be initializing. Check status with:"
 echo "  docker ps"
 echo ""
-echo "To manage individual services, use the deploy scripts in each service directory:"
-echo "  sudo ./services/[service-name]/deploy.sh"
+echo "Available profiles for selective deployment:"
+echo "  - all          : All services"
+echo "  - frontends    : All frontend services"
+echo "  - backends     : All backend services"
+echo "  - databases    : All database services"
+echo "  - management   : Management tools (Portainer)"
+echo "  - thehive-frontend : TheHive & Cortex"
+echo "  - thehive-backend  : TheHive databases and dependencies" 
+echo "  - grr-frontend     : GRR Admin UI"
+echo "  - grr-backend      : GRR backend services"
+echo "  - misp-frontend    : MISP frontend"
+echo "  - misp-backend     : MISP databases and dependencies"
+echo ""
+echo "Example for deploying only frontend services:"
+echo "  sudo ./deploy.sh --frontends"
 echo -e "${BLUE}=====================================================${NC}"

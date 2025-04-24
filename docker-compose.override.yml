@@ -1,0 +1,46 @@
+version: '3.8'
+
+# Development overrides for BTPI-CTI platform
+# This file is automatically used when running docker-compose up
+# without explicitly specifying a compose file
+
+services:
+  # Portainer - add development labels
+  portainer:
+    labels:
+      - "dev.btpi.environment=development"
+
+  # GRR Admin UI development settings
+  grr-admin-ui:
+    volumes:
+      - ./grr_configs:/configs:rw
+    environment:
+      - GRR_DEBUG=1
+    command: [
+      "/bin/bash",
+      "-c",
+      "/configs/server/repack_clients.sh && grr_server -component admin_ui -config /configs/server/grr.server.yaml --verbose"
+    ]
+
+  # MISP Development settings
+  misp-core:
+    environment:
+      - MISP_DEBUG=1
+      - MISP_LIVE_RELOAD=1
+    
+  # TheHive development settings
+  thehive:
+    environment:
+      - JVM_OPTS=-Xms1536M -Xmx1536M -Dconfig.file=/etc/thehive/application.conf -Dlogger.file=/etc/thehive/logback.xml -Dhttp.port=9000 -Dplay.http.context=/ -Dpidfile.path=/dev/null
+      - TH_DEBUG=1
+    volumes:
+      - ./services/thehive/thehive-application.conf:/etc/thehive/application.conf:ro
+
+  # Integration API development settings
+  integration-api:
+    volumes:
+      - ./integrations:/usr/share/nginx/html:ro
+      - ./configs/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    environment:
+      - NGINX_HOST=localhost
+    command: [nginx-debug, '-g', 'daemon off;']

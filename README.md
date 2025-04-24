@@ -1,121 +1,128 @@
-# BTPI-CTI: Cyber Threat Intelligence Platform
+# BTPI-CTI: Container Threat Intelligence Platform
 
-BTPI-CTI is a comprehensive Cyber Threat Intelligence platform that integrates multiple open-source security tools into a unified solution.
+BTPI-CTI is a containerized cyber threat intelligence platform combining multiple powerful security tools:
 
-## Components
+- GRR (Rapid Response)
+- TheHive (Case Management)
+- Cortex (Security Orchestration)
+- MISP (Threat Intelligence Platform)
+- Integration API (Web interface for integration documentation)
 
-The platform consists of the following components:
+## Optimized Container Architecture
 
-- **Portainer**: Container management interface
-- **GRR Rapid Response**: Remote forensics and incident response tool
-- **TheHive**: Security incident response platform 
-- **Cortex**: Observable analysis engine that integrates with TheHive
-- **MISP**: Malware Information Sharing Platform
-- **Integration API**: Documentation and APIs for component integration
+This updated architecture resolves several key issues with container builds, port management, and dependency coordination:
 
-## Architecture
+### 1. Centralized Environment Configuration
+- Global `.env` file contains all port configurations, memory limits, and build parameters
+- Dynamic port allocation via `scripts/allocate_ports.sh` to prevent conflicts
+- Shared variable space for multiple services
 
-Each component is deployed as a separate service within its own directory. This modular approach allows for:
+### 2. Profile-Based Deployment System
+- Selective deployment using Docker Compose profiles
+- Start only what you need: frontends, backends, or specific service groups
+- Simplified testing and development workflows
 
-- Independent service management (start/stop/update)
-- Separation of configuration files
-- Prevention of port conflicts
-- Easier troubleshooting and maintenance
+### 3. Standardized Container Naming & Networking
+- Automatic prefixing of container names
+- Shared network configuration
+- Improved service discovery
 
-The platform uses a shared Docker network (`cti-network`) to facilitate communication between services.
+## Quick Start
 
-## Prerequisites
-
-- Linux OS (tested on Ubuntu 22.04)
-- Docker and Docker Compose installed
-- At least 8GB RAM and 50GB disk space
-- Sudo/root access for deployment
-
-## Installation
-
-1. Clone this repository:
-   ```
-   git clone https://github.com/btpi/btpi-cti.git
-   cd btpi-cti
-   ```
-
-2. Run the master deployment script:
-   ```
-   sudo ./deploy.sh
-   ```
-
-This will:
-- Create the Docker network
-- Generate necessary secrets and passwords
-- Deploy all services in proper order
-- Display access URLs and credentials
-
-## Service Management
-
-### Full Deployment
-
-To deploy the entire platform:
-```
+```bash
+# Deploy everything (all services)
 sudo ./deploy.sh
+
+# Deploy only frontend services (UIs)
+sudo ./deploy.sh --frontends
+
+# Deploy only TheHive and its dependencies
+sudo ./deploy.sh --thehive
+
+# Deploy with clean volumes (fresh install)
+sudo ./deploy.sh --clean
 ```
 
-### Individual Services
+## Port Management
 
-Each service has its own deployment script for independent management:
+The system now manages ports dynamically:
 
-```
-# Deploy/redeploy just Portainer
-sudo ./services/portainer/deploy.sh
+1. Default ports are defined in `.env`
+2. The `allocate_ports.sh` script can find available ports automatically
+3. All port references use environment variables
 
-# Deploy/redeploy just GRR
-sudo ./services/grr/deploy.sh
+## Deployment Profiles
 
-# Deploy/redeploy just TheHive + Cortex
-sudo ./services/thehive/deploy.sh
+Available profiles for selective deployment:
 
-# Deploy/redeploy just MISP
-sudo ./services/misp/deploy.sh
+| Profile | Description |
+|---------|-------------|
+| `all` | All services |
+| `frontends` | User interfaces (TheHive, GRR UI, etc.) |
+| `backends` | Background services and workers |
+| `databases` | Database services only |
+| `management` | Management tools (Portainer) |
+| `thehive-frontend` | TheHive & Cortex UIs |
+| `thehive-backend` | TheHive databases and dependencies |
+| `grr-frontend` | GRR Admin UI |
+| `grr-backend` | GRR backend services |
+| `misp-frontend` | MISP frontend |
+| `misp-backend` | MISP databases and dependencies |
 
-# Deploy/redeploy just the Integration API
-sudo ./services/integration-api/deploy.sh
-```
+## Development Mode
 
-## Access Information
+For development, a `docker-compose.override.yml` file provides development-specific settings that are automatically applied when running `docker-compose up`:
 
-After deployment, services are available at:
-
-- **Portainer**: http://[your-ip]:9010
-- **GRR Admin UI**: http://[your-ip]:8001
-- **TheHive**: http://[your-ip]:9000
-- **Cortex**: http://[your-ip]:9001
-- **MISP**: http://[your-ip]:8083
-- **Integration API**: http://[your-ip]:8888
-
-Default credentials are generated during installation and displayed at the end of the deployment process.
+- Live reloading
+- Debug settings
+- Volume mounts to edit files directly
 
 ## Troubleshooting
 
-If a service is not working correctly:
+If you encounter port conflicts:
 
-1. Check its status:
-   ```
-   docker ps | grep [service-name]
-   ```
+```bash
+# Reallocate ports
+./scripts/allocate_ports.sh
 
-2. View service logs:
-   ```
-   docker logs [container-name]
-   ```
+# Restart with new port allocation
+sudo ./deploy.sh
+```
 
-3. Redeploy the service:
-   ```
-   sudo ./services/[service-name]/deploy.sh
-   ```
+## Architecture Diagram
 
-## Security Notice
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   FRONTENDS     │     │    BACKENDS     │     │    DATABASES    │
+├─────────────────┤     ├─────────────────┤     ├─────────────────┤
+│  - GRR Admin UI │     │ - GRR Workers   │     │ - MySQL (GRR)   │
+│  - TheHive      │◄───►│ - Fleetspeak    │◄───►│ - Cassandra     │
+│  - Cortex       │     │ - MISP Modules  │     │ - Elasticsearch │
+│  - MISP         │     │                 │     │ - Redis         │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         ▲                      ▲                       ▲
+         │                      │                       │
+         └──────────────────────┼───────────────────────┘
+                                │
+                     ┌──────────▼─────────┐
+                     │    MANAGEMENT      │
+                     ├────────────────────┤
+                     │  - Portainer       │
+                     │  - Network Manager │
+                     └────────────────────┘
+```
 
-This platform contains sensitive security tools. Ensure proper access controls are in place and consider deploying behind a VPN or secure network.
+## Service Management
 
-## License
+```bash
+# List running containers with profiles
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+# Check logs for a specific service
+docker logs btpi_cti_thehive
+
+# Stop all services
+docker-compose down
+
+# Stop only specific profiles
+docker-compose --profile frontends down
