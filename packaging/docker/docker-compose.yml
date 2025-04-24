@@ -23,10 +23,10 @@ services:
     restart: unless-stopped
     privileged: true
     networks:
-      - cti-network
+      - ${NETWORK}
 
 networks:
-  cti-network:
+  ${NETWORK}:
     driver: bridge
 
 volumes:

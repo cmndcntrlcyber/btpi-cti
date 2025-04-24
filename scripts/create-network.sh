@@ -13,10 +13,14 @@ echo -e "${BLUE}      Creating Docker Network for BTPI-CTI Services   ${NC}"
 echo -e "${BLUE}=====================================================${NC}"
 
 # Source the .env file for variables
-if [ -f ../.env ]; then
-    source ../.env
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+ENV_FILE="$PROJECT_ROOT/.env"
+
+if [ -f "$ENV_FILE" ]; then
+    source "$ENV_FILE"
 else
-    echo "Warning: .env file not found, using default network name 'cti-network'"
+    echo "Warning: .env file not found at $ENV_FILE, using default network name 'cti-network'"
     NETWORK="cti-network"
 fi
 

@@ -1,7 +1,7 @@
 version: '3.8'
 
 networks:
-  cti-network:
+  ${NETWORK}:
     external: true
 
 volumes:
@@ -20,7 +20,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - portainer_data:/data
     networks:
-      - cti-network
+      - ${NETWORK}
     security_opt:
       - no-new-privileges:true
     healthcheck:
