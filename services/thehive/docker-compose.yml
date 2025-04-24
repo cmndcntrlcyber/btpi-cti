@@ -1,8 +1,9 @@
 version: '3.8'
 
 networks:
-  ${NETWORK}:
+  default:
     external: true
+    name: ${NETWORK}
 
 volumes:
   cassandra_data: # For TheHive
@@ -26,7 +27,7 @@ services:
       - cassandra_data:/var/lib/cassandra
     restart: unless-stopped
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -61,7 +62,7 @@ services:
         soft: 65536
         hard: 65536
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -88,7 +89,7 @@ services:
       - ../../secrets/minio_root_user:/run/secrets/minio_root_user:ro
       - ../../secrets/minio_root_password:/run/secrets/minio_root_password:ro
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -113,7 +114,7 @@ services:
     ports:
       - "${CORTEX_PORT}:9001"
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -170,7 +171,7 @@ services:
       - "--cortex-keys-file"
       - "/run/secrets/cortex_api_key"
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     healthcheck:

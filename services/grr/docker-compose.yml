@@ -1,8 +1,9 @@
 version: '3.8'
 
 networks:
-  ${NETWORK}:
+  default:
     external: true
+    name: ${NETWORK}
 
 volumes:
   db_data: # GRR MySQL data
@@ -33,7 +34,7 @@ services:
     ports:
       - "3306:3306"
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -59,7 +60,7 @@ services:
     ports:
       - "8001:8000"
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     entrypoint: [
@@ -87,7 +88,7 @@ services:
       - "11111"
     restart: unless-stopped
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     command:
@@ -105,7 +106,7 @@ services:
       grr-db:
         condition: service_healthy
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     expose:
@@ -131,7 +132,7 @@ services:
       grr-db:
         condition: service_healthy
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     expose:
@@ -161,7 +162,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     command:

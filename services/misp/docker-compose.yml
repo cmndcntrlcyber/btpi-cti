@@ -1,8 +1,9 @@
 version: '3.8'
 
 networks:
-  ${NETWORK}:
+  default:
     external: true
+    name: ${NETWORK}
 
 volumes:
   misp_data: # For MISP
@@ -30,7 +31,7 @@ services:
       - ../../secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
       - ../../secrets/misp_admin_password:/run/secrets/misp_admin_password:ro
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     depends_on:
@@ -53,7 +54,7 @@ services:
       - redis
       - misp-core
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
 
@@ -71,7 +72,7 @@ services:
       - ../../secrets/misp_root_password:/run/secrets/misp_root_password:ro
       - ../../secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -92,7 +93,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     healthcheck:

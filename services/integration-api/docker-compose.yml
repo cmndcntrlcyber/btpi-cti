@@ -1,8 +1,9 @@
 version: '3.8'
 
 networks:
-  ${NETWORK}:
+  default:
     external: true
+    name: ${NETWORK}
 
 services:
   # Integration helper
@@ -16,7 +17,7 @@ services:
     ports:
       - "8888:80"
     networks:
-      - ${NETWORK}
+      - default
     security_opt:
       - no-new-privileges:true
     healthcheck:
