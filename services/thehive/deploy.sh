@@ -23,9 +23,13 @@ fi
 # Navigate to script directory
 cd "$(dirname "$0")"
 
+# Export network variable from environment or default to cti-network
+export NETWORK=${NETWORK:-cti-network}
+export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-btpi_cti}
+
 # Ensure network exists
-if ! docker network inspect cti-network > /dev/null 2>&1; then
-    echo -e "${YELLOW}Required network 'cti-network' does not exist${NC}"
+if ! docker network inspect ${NETWORK} > /dev/null 2>&1; then
+    echo -e "${YELLOW}Required network '${NETWORK}' does not exist${NC}"
     echo -e "${YELLOW}Please run the create-network.sh script first${NC}"
     exit 1
 fi
@@ -66,10 +70,11 @@ fi
 
 # Stop and remove existing containers if they exist
 for container in elasticsearch minio cassandra cortex thehive; do
-    if docker ps -a --format '{{.Names}}' | grep -q "^$container$"; then
-        echo "Stopping and removing existing $container container..."
-        docker stop $container >/dev/null 2>&1 || true
-        docker rm $container >/dev/null 2>&1 || true
+    prefixed_container="${COMPOSE_PROJECT_NAME}_${container}"
+    if docker ps -a --format '{{.Names}}' | grep -q "^${prefixed_container}$"; then
+        echo "Stopping and removing existing ${prefixed_container} container..."
+        docker stop ${prefixed_container} >/dev/null 2>&1 || true
+        docker rm ${prefixed_container} >/dev/null 2>&1 || true
     fi
 done
 
@@ -82,7 +87,7 @@ echo "Waiting for Elasticsearch to initialize (this may take a few minutes)..."
 attempt=0
 max_attempts=30
 while [ $attempt -lt $max_attempts ]; do
-    if docker ps --format '{{.Status}}' | grep -q "elasticsearch.*healthy"; then
+    if docker ps --format '{{.Status}}' | grep -q "${COMPOSE_PROJECT_NAME}_elasticsearch.*healthy"; then
         echo -e "${GREEN}✓${NC} Elasticsearch is healthy."
         break
     fi
@@ -102,7 +107,7 @@ echo "Waiting for TheHive to initialize (this may take a few minutes)..."
 attempt=0
 max_attempts=30
 while [ $attempt -lt $max_attempts ]; do
-    if docker ps --format '{{.Names}}' | grep -q "^thehive$"; then
+    if docker ps --format '{{.Names}}' | grep -q "^${COMPOSE_PROJECT_NAME}_thehive$"; then
         echo -e "${GREEN}✓${NC} TheHive is running."
         break
     fi
@@ -113,16 +118,17 @@ while [ $attempt -lt $max_attempts ]; do
     
     if [ $attempt -eq $max_attempts ]; then
         echo -e "${YELLOW}⚠${NC} Timed out waiting for TheHive to start."
-        echo -e "${YELLOW}⚠${NC} Please check status with 'docker logs thehive'"
+        echo -e "${YELLOW}⚠${NC} Please check status with 'docker logs ${COMPOSE_PROJECT_NAME}_thehive'"
     fi
 done
 
 # Check if all containers are running
 all_running=true
 for container in elasticsearch minio cassandra cortex thehive; do
-    if ! docker ps --format '{{.Names}}' | grep -q "^$container$"; then
+    prefixed_container="${COMPOSE_PROJECT_NAME}_${container}"
+    if ! docker ps --format '{{.Names}}' | grep -q "^${prefixed_container}$"; then
         all_running=false
-        echo -e "${RED}✗${NC} $container is not running"
+        echo -e "${RED}✗${NC} ${prefixed_container} is not running"
     fi
 done
 
