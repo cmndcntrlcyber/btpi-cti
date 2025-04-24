@@ -139,7 +139,7 @@ services:
         condition: service_healthy
     mem_limit: ${THEHIVE_MEM_LIMIT}
     ports:
-      - "${THEHIVE_PORT}:9000"
+      - "${THEHIVE_PORT}:9000"  # Use a different port (e.g. 9002) in .env to avoid conflicts with Portainer
     environment:
       - JVM_OPTS=${THEHIVE_JVM_HEAP}
     volumes:

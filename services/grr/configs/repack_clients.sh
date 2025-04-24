@@ -21,15 +21,15 @@ echo "Repacking GRR clients for all platforms..."
 
 # Windows client
 echo "Repacking Windows client..."
-grr_config_updater repack_clients --platform windows --output_dir=/client_installers
+grr_config_updater repack_clients --platform=windows --output_dir=/client_installers
 
 # Linux client
 echo "Repacking Linux client..."
-grr_config_updater repack_clients --platform linux --output_dir=/client_installers
+grr_config_updater repack_clients --platform=linux --output_dir=/client_installers
 
 # macOS client
 echo "Repacking macOS client..."
-grr_config_updater repack_clients --platform darwin --output_dir=/client_installers
+grr_config_updater repack_clients --platform=darwin --output_dir=/client_installers
 
 echo "Client repackaging completed successfully."
 exit 0
