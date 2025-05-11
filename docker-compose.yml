@@ -731,7 +731,7 @@ services:
       start_period: 60s
 
   worker-openbas:
-    image: filigran/openbas-worker:1.0.0
+    image: filigran/openbas:worker-1.0.0
     # Removed container_name to allow multiple replicas
     environment:
       - OPENBAS_URL=http://openbas:8080
