@@ -528,7 +528,7 @@ services:
 
   worker-opencti:
     image: opencti/worker:5.9.6
-    container_name: ${COMPOSE_PROJECT_NAME}_worker_opencti
+    # Removed container_name to allow multiple replicas
     environment:
       - OPENCTI_URL=http://opencti:8080
       - OPENCTI_TOKEN_FILE=/run/secrets/opencti_admin_token
@@ -732,7 +732,7 @@ services:
 
   worker-openbas:
     image: filigran/openbas-worker:1.0.0
-    container_name: ${COMPOSE_PROJECT_NAME}_worker_openbas
+    # Removed container_name to allow multiple replicas
     environment:
       - OPENBAS_URL=http://openbas:8080
       - OPENBAS_TOKEN_FILE=/run/secrets/openbas_admin_token
