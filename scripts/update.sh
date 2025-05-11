@@ -145,13 +145,6 @@ update_component() {
                 docker-compose up -d --no-deps cortex
             fi
             ;;
-        misp)
-            update_images "misp"
-            if [ "$RESTART_AFTER_UPDATE" = true ]; then
-                echo "Restarting MISP..."
-                docker-compose up -d --no-deps misp
-            fi
-            ;;
         grr)
             update_images "grr"
             if [ "$RESTART_AFTER_UPDATE" = true ]; then
@@ -168,7 +161,7 @@ update_component() {
             ;;
         *)
             echo "Unknown component: $component"
-            echo "Available components: thehive, cortex, misp, grr, portainer"
+            echo "Available components: thehive, cortex, grr, portainer"
             return 1
             ;;
     esac

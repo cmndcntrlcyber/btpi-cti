@@ -35,7 +35,7 @@ if ! docker network inspect ${NETWORK} > /dev/null 2>&1; then
 fi
 
 # Ensure integration directories exist
-mkdir -p ../../integrations/{cortex-thehive,grr-thehive,misp-thehive}
+mkdir -p ../../integrations/{cortex-thehive,grr-thehive}
 
 # Create integration index page if it doesn't exist
 if [ ! -f "../../integrations/index.html" ]; then
@@ -110,10 +110,6 @@ if [ ! -f "../../integrations/index.html" ]; then
       <li>
         <a href="/grr-thehive/">GRR-TheHive Integration</a>
         <div class="description">Integration between GRR Rapid Response and TheHive for incident response and endpoint investigation.</div>
-      </li>
-      <li>
-        <a href="/misp-thehive/">MISP-TheHive Integration</a>
-        <div class="description">Integration between MISP threat intelligence platform and TheHive for alert sharing and management.</div>
       </li>
     </ul>
 

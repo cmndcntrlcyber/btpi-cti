@@ -22,12 +22,6 @@ services:
       "/configs/server/repack_clients.sh && grr_server -component admin_ui -config /configs/server/grr.server.yaml --verbose"
     ]
 
-  # MISP Development settings
-  misp-core:
-    environment:
-      - MISP_DEBUG=1
-      - MISP_LIVE_RELOAD=1
-    
   # TheHive development settings
   thehive:
     environment:

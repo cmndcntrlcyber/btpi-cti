@@ -75,19 +75,6 @@ After installation, you'll need to configure each component of the CTI platform.
 7. Select option 1 to set up TheHive and Cortex integration
 8. Follow the prompts to complete the integration
 
-### MISP Configuration
-
-1. Access MISP at http://localhost:8080
-2. Default credentials are admin@admin.test / admin
-3. Change the default password immediately
-4. Configure MISP according to your organization's needs
-5. Run the integration setup script:
-   ```bash
-   sudo ./scripts/setup-integration.sh
-   ```
-6. Select option 2 to set up MISP and TheHive integration
-7. Follow the prompts to complete the integration
-
 ### GRR Configuration
 
 1. Access GRR at http://localhost:8001
@@ -99,6 +86,36 @@ After installation, you'll need to configure each component of the CTI platform.
    ```
 5. Select option 3 to set up GRR and TheHive integration
 6. Follow the prompts to complete the integration
+
+### OpenCTI Configuration
+
+1. Access OpenCTI at http://localhost:8080 (or the port assigned during installation)
+2. Default credentials are admin@opencti.io / changeme
+3. Change the default password immediately
+4. Configure connectors and integrations:
+   - Go to Data > Connectors
+   - Enable and configure the connectors you need
+5. To integrate with TheHive and Cortex:
+   ```bash
+   sudo ./scripts/setup-integration.sh
+   ```
+6. Select the option to set up OpenCTI integration
+7. Follow the prompts to complete the integration
+
+### OpenBAS Configuration
+
+1. Access OpenBAS at http://localhost:8090 (or the port assigned during installation)
+2. Default credentials are admin@openbas.io / changeme
+3. Change the default password immediately
+4. Configure your breach and attack simulation scenarios:
+   - Go to Scenarios
+   - Create or import scenarios based on your requirements
+5. To integrate with other components:
+   ```bash
+   sudo ./scripts/setup-integration.sh
+   ```
+6. Select the option to set up OpenBAS integration
+7. Follow the prompts to complete the integration
 
 ### Kasm Workspaces Setup
 

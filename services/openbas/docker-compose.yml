@@ -1,0 +1,108 @@
+version: '3'
+networks:
+  default:
+    external: true
+    name: ${NETWORK}
+
+volumes:
+  esdata:
+  s3data:
+  redisdata:
+  amqpdata:
+
+services:
+  redis:
+    image: redis:7.0.12
+    container_name: ${COMPOSE_PROJECT_NAME}_redis_openbas
+    restart: always
+    volumes:
+      - redisdata:/data
+    networks:
+      - default
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: ${COMPOSE_PROJECT_NAME}_rabbitmq_openbas
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - amqpdata:/var/lib/rabbitmq
+    restart: always
+    networks:
+      - default
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  openbas:
+    image: filigran/openbas:1.0.0
+    container_name: ${COMPOSE_PROJECT_NAME}_openbas
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=8096
+      - APP__PORT=8080
+      - APP__BASE_URL=${OPENBAS_BASE_URL}
+      - APP__ADMIN__EMAIL=${OPENBAS_ADMIN_EMAIL}
+      - APP__ADMIN__PASSWORD=${OPENBAS_ADMIN_PASSWORD}
+      - APP__ADMIN__TOKEN=${OPENBAS_ADMIN_TOKEN}
+      - APP__APP_LOGS__LOGS_LEVEL=error
+      - REDIS__HOSTNAME=redis_openbas
+      - REDIS__PORT=6379
+      - ELASTICSEARCH__URL=http://elasticsearch:9200
+      - MINIO__ENDPOINT=minio
+      - MINIO__PORT=9000
+      - MINIO__USE_SSL=false
+      - MINIO__ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO__SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - RABBITMQ__HOSTNAME=rabbitmq_openbas
+      - RABBITMQ__PORT=5672
+      - RABBITMQ__USERNAME=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ__PASSWORD=${RABBITMQ_DEFAULT_PASS}
+      - SMTP__HOSTNAME=${SMTP_HOSTNAME}
+      - SMTP__PORT=25
+      - PROVIDERS__LOCAL__STRATEGY=LocalStrategy
+    ports:
+      - "${OPENBAS_PORT}:8080"
+    depends_on:
+      - redis_openbas
+      - rabbitmq_openbas
+    restart: always
+    networks:
+      - default
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/graphql"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  worker:
+    image: filigran/openbas-worker:1.0.0
+    container_name: ${COMPOSE_PROJECT_NAME}_worker_openbas
+    environment:
+      - OPENBAS_URL=http://openbas:8080
+      - OPENBAS_TOKEN=${OPENBAS_ADMIN_TOKEN}
+      - WORKER_LOG_LEVEL=error
+    depends_on:
+      - openbas
+    deploy:
+      mode: replicated
+      replicas: 3
+    restart: always
+    networks:
+      - default
+    security_opt:
+      - no-new-privileges:true

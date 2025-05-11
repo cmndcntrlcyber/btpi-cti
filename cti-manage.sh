@@ -265,11 +265,6 @@ show_credentials() {
     echo -e "  Default Password: secret"
     echo -e ""
     
-    echo -e "${YELLOW}MISP:${NC}"
-    echo -e "  URL: http://localhost:8083"
-    echo -e "  Default Username: admin@admin.test"
-    echo -e "  Default Password: admin"
-    echo -e ""
     
     echo -e "${YELLOW}GRR Rapid Response:${NC}"
     echo -e "  URL: http://localhost:8001"
@@ -298,7 +293,6 @@ show_ports() {
     
     echo -e "${YELLOW}TheHive:${NC} 9000"
     echo -e "${YELLOW}Cortex:${NC} 9001"
-    echo -e "${YELLOW}MISP:${NC} 8083"
     echo -e "${YELLOW}GRR Rapid Response:${NC} 8001"
     echo -e "${YELLOW}Portainer:${NC} 9000 (HTTP), 9010 (Original UI), 9443 (HTTPS)"
     echo -e "${YELLOW}Attack Workbench:${NC} 9080"

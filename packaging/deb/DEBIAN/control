@@ -15,6 +15,5 @@ Description: Blue Team Portable Infrastructure - Cyber Threat Intelligence
   * GRR Rapid Response: Live forensics and incident response framework
   * TheHive: Security incident response platform
   * Cortex: Observable analysis engine
-  * MISP: Threat intelligence platform
   * Kasm Workspaces: Browser isolation and virtual desktop environment
   * Portainer: Container management interface

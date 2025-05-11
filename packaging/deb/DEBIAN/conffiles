@@ -2,6 +2,5 @@
 /opt/btpi-cti/docker-compose.yml
 /opt/btpi-cti/configs/cortex/application.conf
 /opt/btpi-cti/configs/thehive/application.conf
-/opt/btpi-cti/configs/misp/config.php
 /opt/btpi-cti/configs/grr/server.local.yaml
 /opt/btpi-cti/configs/portainer/portainer.yml

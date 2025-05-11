@@ -8,7 +8,6 @@ The CTI platform integrates multiple tools to provide a comprehensive environmen
 
 - **TheHive**: Security incident response platform
 - **Cortex**: Observable analysis engine
-- **MISP**: Threat intelligence platform
 - **GRR**: Live forensics and incident response framework
 - **Kasm Workspaces**: Browser isolation and virtual desktop environment
 
@@ -18,7 +17,6 @@ Each component of the CTI platform can be accessed through its web interface:
 
 - TheHive: http://localhost:9000
 - Cortex: http://localhost:9001
-- MISP: http://localhost:8080
 - GRR: http://localhost:8001
 - Kasm Workspaces: https://localhost:443
 - Portainer: http://localhost:9000
@@ -69,37 +67,6 @@ TheHive is the central incident response platform where you can create and manag
 6. Set a deadline if needed
 7. Click "Add" to create the task
 
-## Using MISP
-
-MISP is used for sharing and correlating threat intelligence.
-
-### Creating an Event
-
-1. Log in to MISP
-2. Click on "Event Actions" > "Add Event"
-3. Fill in the event details:
-   - Distribution: Who can see the event
-   - Threat Level: The severity of the threat
-   - Analysis: The level of analysis completed
-   - Information: A description of the event
-4. Click "Submit" to create the event
-
-### Adding Attributes
-
-1. Open an event
-2. Click on "Add Attribute"
-3. Select the category and type
-4. Enter the value
-5. Set the distribution level
-6. Click "Submit" to add the attribute
-
-### Importing Events from TheHive
-
-1. In TheHive, open a case
-2. Click on "Actions" > "Export to MISP"
-3. Configure the export settings
-4. Click "Export" to send the case to MISP
-
 ## Using GRR
 
 GRR is used for remote live forensics and incident response.
@@ -148,7 +115,7 @@ The Threat Hunting workspace includes:
 
 - Multiple browsers for secure browsing
 - OSINT tools (Shodan, Censys, etc.)
-- Integration with TheHive, Cortex, and MISP
+- Integration with TheHive and Cortex
 - Analysis utilities
 
 ### Malware Analysis Workspace
@@ -180,7 +147,7 @@ The OSINT workspace includes:
 5. Use GRR to collect evidence from affected endpoints
 6. Create and assign tasks to team members
 7. Document findings and actions in the case
-8. Share threat intelligence with MISP if appropriate
+8. Document and share threat intelligence internally
 9. Close the case when resolved
 
 ### Threat Hunting Workflow
@@ -192,18 +159,7 @@ The OSINT workspace includes:
 5. Analyze findings and collect evidence
 6. If a threat is found, create a case in TheHive
 7. Document the hunting process and results
-8. Share findings with the team and in MISP if appropriate
-
-### Threat Intelligence Workflow
-
-1. Receive or discover new threat intelligence
-2. Create an event in MISP with the details
-3. Add attributes (indicators) to the event
-4. Set the appropriate sharing level
-5. Correlate with existing events
-6. Export to TheHive if action is needed
-7. Create detection rules based on the intelligence
-8. Monitor for matches using GRR or other tools
+8. Share findings with the team
 
 ## Tips and Best Practices
 

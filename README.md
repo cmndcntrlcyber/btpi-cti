@@ -5,7 +5,8 @@ BTPI-CTI is a containerized cyber threat intelligence platform combining multipl
 - GRR (Rapid Response)
 - TheHive (Case Management)
 - Cortex (Security Orchestration)
-- MISP (Threat Intelligence Platform)
+- OpenCTI (Threat Intelligence Platform)
+- OpenBAS (Breach and Attack Simulation)
 - Integration API (Web interface for integration documentation)
 
 ## Optimized Container Architecture
@@ -66,8 +67,8 @@ Available profiles for selective deployment:
 | `thehive-backend` | TheHive databases and dependencies |
 | `grr-frontend` | GRR Admin UI |
 | `grr-backend` | GRR backend services |
-| `misp-frontend` | MISP frontend |
-| `misp-backend` | MISP databases and dependencies |
+| `opencti` | OpenCTI platform and dependencies |
+| `openbas` | OpenBAS platform and dependencies |
 
 ## Development Mode
 
@@ -96,9 +97,11 @@ sudo ./deploy.sh
 │   FRONTENDS     │     │    BACKENDS     │     │    DATABASES    │
 ├─────────────────┤     ├─────────────────┤     ├─────────────────┤
 │  - GRR Admin UI │     │ - GRR Workers   │     │ - MySQL (GRR)   │
-│  - TheHive      │◄───►│ - Fleetspeak    │◄───►│ - Cassandra     │
-│  - Cortex       │     │ - MISP Modules  │     │ - Elasticsearch │
-│  - MISP         │     │                 │     │ - Redis         │
+│  - TheHive      │     │ - Fleetspeak    │     │ - Cassandra     │
+│  - Cortex       │◄───►│ - OpenCTI       │◄───►│ - Elasticsearch │
+│  - OpenCTI      │     │   Workers       │     │ - Redis         │
+│  - OpenBAS      │     │ - OpenBAS       │     │ - RabbitMQ      │
+│                 │     │   Workers       │     │ - MinIO         │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
          ▲                      ▲                       ▲
          │                      │                       │

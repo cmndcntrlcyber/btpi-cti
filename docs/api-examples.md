@@ -8,7 +8,6 @@ The CTI platform components expose APIs that can be used for automation, integra
 
 - **TheHive API**: For managing cases, tasks, observables, and alerts
 - **Cortex API**: For submitting observables for analysis and retrieving results
-- **MISP API**: For managing events, attributes, and tags
 - **GRR API**: For managing clients, flows, and hunts
 
 ## Authentication
@@ -42,20 +41,6 @@ Use the API key in your requests:
 
 ```bash
 curl -H "Authorization: Bearer YOUR_API_KEY" http://localhost:9001/api/analyzer
-```
-
-### MISP Authentication
-
-MISP uses authentication keys for API access. To find your authentication key:
-
-1. Log in to MISP
-2. Go to "Event Actions" > "Automation"
-3. Copy your authentication key
-
-Use the authentication key in your requests:
-
-```bash
-curl -H "Authorization: YOUR_API_KEY" http://localhost:8080/events
 ```
 
 ### GRR Authentication
@@ -282,112 +267,6 @@ response = requests.get(url, headers=headers)
 print(response.json())
 ```
 
-## MISP API Examples
-
-### Create an Event
-
-```python
-import requests
-import json
-
-api_key = "YOUR_API_KEY"
-url = "http://localhost:8080/events"
-
-headers = {
-    "Authorization": api_key,
-    "Content-Type": "application/json",
-    "Accept": "application/json"
-}
-
-event_data = {
-    "Event": {
-        "info": "Phishing Campaign",
-        "threat_level_id": 2,
-        "analysis": 1,
-        "distribution": 0,
-        "date": "2023-01-15",
-        "published": False,
-        "Attribute": [
-            {
-                "type": "email-src",
-                "category": "Payload delivery",
-                "value": "malicious@example.com",
-                "to_ids": True
-            },
-            {
-                "type": "url",
-                "category": "Payload delivery",
-                "value": "https://malicious-site.example.com",
-                "to_ids": True
-            }
-        ],
-        "Tag": [
-            {"name": "phishing"},
-            {"name": "tlp:amber"}
-        ]
-    }
-}
-
-response = requests.post(url, headers=headers, data=json.dumps(event_data))
-print(response.json())
-```
-
-### Add an Attribute to an Event
-
-```python
-import requests
-import json
-
-api_key = "YOUR_API_KEY"
-event_id = "EVENT_ID"
-url = f"http://localhost:8080/attributes/add/{event_id}"
-
-headers = {
-    "Authorization": api_key,
-    "Content-Type": "application/json",
-    "Accept": "application/json"
-}
-
-attribute_data = {
-    "Attribute": {
-        "type": "ip-dst",
-        "category": "Network activity",
-        "value": "192.168.1.1",
-        "to_ids": True,
-        "comment": "C2 server IP address"
-    }
-}
-
-response = requests.post(url, headers=headers, data=json.dumps(attribute_data))
-print(response.json())
-```
-
-### Search for Events
-
-```python
-import requests
-import json
-
-api_key = "YOUR_API_KEY"
-url = "http://localhost:8080/events/restSearch"
-
-headers = {
-    "Authorization": api_key,
-    "Content-Type": "application/json",
-    "Accept": "application/json"
-}
-
-search_data = {
-    "returnFormat": "json",
-    "tags": ["phishing"],
-    "limit": 10,
-    "page": 1
-}
-
-response = requests.post(url, headers=headers, data=json.dumps(search_data))
-print(response.json())
-```
-
 ## GRR API Examples
 
 ### List Clients
@@ -454,108 +333,6 @@ print(response.json())
 ```
 
 ## Integration Examples
-
-### TheHive to MISP Integration
-
-This example shows how to export a case from TheHive to MISP:
-
-```python
-import requests
-import json
-
-# TheHive API details
-thehive_api_key = "YOUR_THEHIVE_API_KEY"
-thehive_url = "http://localhost:9000"
-case_id = "CASE_ID"
-
-# MISP API details
-misp_api_key = "YOUR_MISP_API_KEY"
-misp_url = "http://localhost:8080"
-
-# Get case details from TheHive
-thehive_headers = {
-    "Authorization": f"Bearer {thehive_api_key}",
-    "Content-Type": "application/json"
-}
-
-case_response = requests.get(f"{thehive_url}/api/case/{case_id}", headers=thehive_headers)
-case_data = case_response.json()
-
-# Get observables from the case
-observables_response = requests.get(f"{thehive_url}/api/case/{case_id}/observable", headers=thehive_headers)
-observables_data = observables_response.json()
-
-# Create event in MISP
-misp_headers = {
-    "Authorization": misp_api_key,
-    "Content-Type": "application/json",
-    "Accept": "application/json"
-}
-
-# Convert TheHive case to MISP event
-misp_event = {
-    "Event": {
-        "info": case_data["title"],
-        "threat_level_id": case_data["severity"],
-        "analysis": 1,
-        "distribution": 0,
-        "date": case_data["createdAt"].split("T")[0],
-        "published": False,
-        "Attribute": [],
-        "Tag": []
-    }
-}
-
-# Add tags from TheHive case
-for tag in case_data.get("tags", []):
-    misp_event["Event"]["Tag"].append({"name": tag})
-
-# Add TLP tag
-tlp_map = {0: "tlp:white", 1: "tlp:green", 2: "tlp:amber", 3: "tlp:red"}
-misp_event["Event"]["Tag"].append({"name": tlp_map.get(case_data.get("tlp", 2), "tlp:amber")})
-
-# Convert TheHive observables to MISP attributes
-for observable in observables_data:
-    # Map TheHive dataType to MISP type and category
-    misp_type = "other"
-    misp_category = "Other"
-    
-    if observable["dataType"] == "ip":
-        misp_type = "ip-dst"
-        misp_category = "Network activity"
-    elif observable["dataType"] == "domain":
-        misp_type = "domain"
-        misp_category = "Network activity"
-    elif observable["dataType"] == "url":
-        misp_type = "url"
-        misp_category = "Network activity"
-    elif observable["dataType"] == "mail":
-        misp_type = "email-src"
-        misp_category = "Payload delivery"
-    elif observable["dataType"] == "hash":
-        if len(observable["data"]) == 32:
-            misp_type = "md5"
-        elif len(observable["data"]) == 40:
-            misp_type = "sha1"
-        elif len(observable["data"]) == 64:
-            misp_type = "sha256"
-        misp_category = "Artifacts dropped"
-    
-    # Create MISP attribute
-    attribute = {
-        "type": misp_type,
-        "category": misp_category,
-        "value": observable["data"],
-        "to_ids": observable.get("ioc", False),
-        "comment": observable.get("message", "")
-    }
-    
-    misp_event["Event"]["Attribute"].append(attribute)
-
-# Create the event in MISP
-event_response = requests.post(f"{misp_url}/events", headers=misp_headers, data=json.dumps(misp_event))
-print(event_response.json())
-```
 
 ### GRR to TheHive Integration
 
@@ -647,112 +424,6 @@ print(alert_response.json())
 
 ## Automation Examples
 
-### Scheduled Threat Intelligence Updates
-
-This example shows a script that could be scheduled to run periodically to fetch the latest threat intelligence from MISP and create alerts in TheHive:
-
-```python
-import requests
-import json
-from datetime import datetime, timedelta
-
-# MISP API details
-misp_api_key = "YOUR_MISP_API_KEY"
-misp_url = "http://localhost:8080"
-
-# TheHive API details
-thehive_api_key = "YOUR_THEHIVE_API_KEY"
-thehive_url = "http://localhost:9000"
-
-# Get events from MISP that were created or updated in the last 24 hours
-misp_headers = {
-    "Authorization": misp_api_key,
-    "Content-Type": "application/json",
-    "Accept": "application/json"
-}
-
-yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-
-search_data = {
-    "returnFormat": "json",
-    "date": yesterday,
-    "limit": 100,
-    "page": 1
-}
-
-events_response = requests.post(f"{misp_url}/events/restSearch", headers=misp_headers, data=json.dumps(search_data))
-events_data = events_response.json()
-
-# Create alerts in TheHive for each MISP event
-thehive_headers = {
-    "Authorization": f"Bearer {thehive_api_key}",
-    "Content-Type": "application/json"
-}
-
-for event in events_data["response"]:
-    # Create alert data
-    alert_data = {
-        "title": f"MISP Event: {event['Event']['info']}",
-        "description": f"New or updated event from MISP: {event['Event']['info']}",
-        "type": "misp",
-        "source": "MISP",
-        "sourceRef": f"misp-{event['Event']['id']}",
-        "severity": int(event['Event']['threat_level_id']),
-        "tlp": 2,  # Default to TLP:AMBER
-        "tags": [],
-        "artifacts": []
-    }
-    
-    # Add tags
-    for tag in event['Event'].get('Tag', []):
-        alert_data["tags"].append(tag['name'])
-        
-        # Set TLP based on tags
-        if tag['name'] == "tlp:white":
-            alert_data["tlp"] = 0
-        elif tag['name'] == "tlp:green":
-            alert_data["tlp"] = 1
-        elif tag['name'] == "tlp:amber":
-            alert_data["tlp"] = 2
-        elif tag['name'] == "tlp:red":
-            alert_data["tlp"] = 3
-    
-    # Add attributes as artifacts
-    for attribute in event['Event'].get('Attribute', []):
-        # Map MISP types to TheHive dataTypes
-        dataType = "other"
-        
-        if attribute['type'] in ["ip-src", "ip-dst"]:
-            dataType = "ip"
-        elif attribute['type'] in ["domain", "hostname"]:
-            dataType = "domain"
-        elif attribute['type'] == "url":
-            dataType = "url"
-        elif attribute['type'] in ["email-src", "email-dst"]:
-            dataType = "mail"
-        elif attribute['type'] in ["md5", "sha1", "sha256"]:
-            dataType = "hash"
-        elif attribute['type'] == "filename":
-            dataType = "filename"
-        
-        # Create artifact
-        artifact = {
-            "dataType": dataType,
-            "data": attribute['value'],
-            "message": attribute.get('comment', ''),
-            "tags": []
-        }
-        
-        # Add tags from attribute
-        for tag in attribute.get('Tag', []):
-            artifact["tags"].append(tag['name'])
-        
-        alert_data["artifacts"].append(artifact)
-    
-    # Create the alert in TheHive
-    alert_response = requests.post(f"{thehive_url}/api/alert", headers=thehive_headers, data=json.dumps(alert_data))
-    print(f"Created alert for MISP event {event['Event']['id']}: {alert_response.status_code}")
-```
 
 ### Automated Response Playbook
 
@@ -837,7 +508,7 @@ for alert in alerts_data:
         "domain": ["Dns", "OTXQuery", "VirusTotal_GetReport"],
         "url": ["VirusTotal_GetReport", "URLhaus"],
         "mail": ["EmailRep"],
-        "hash": ["VirusTotal_GetReport", "MISP_Search"]
+        "hash": ["VirusTotal_GetReport"]
     }
     
     # Run appropriate analyzers on each observable
@@ -985,7 +656,6 @@ load_dotenv()
 
 thehive_api_key = os.getenv("THEHIVE_API_KEY")
 cortex_api_key = os.getenv("CORTEX_API_KEY")
-misp_api_key = os.getenv("MISP_API_KEY")
 grr_api_token = os.getenv("GRR_API_TOKEN")
 
 # Check if keys are available
@@ -1026,5 +696,4 @@ For more detailed information about each API, refer to the official documentatio
 
 - TheHive API: https://github.com/TheHive-Project/TheHiveDocs/blob/master/api/api-guide.md
 - Cortex API: https://github.com/TheHive-Project/CortexDocs/blob/master/api/api-guide.md
-- MISP API: https://www.circl.lu/doc/misp/automation/
 - GRR API: https://grr-doc.readthedocs.io/en/latest/investigating-with-grr/automation-with-api.html

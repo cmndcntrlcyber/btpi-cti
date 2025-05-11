@@ -124,11 +124,17 @@ find_free_port 9040 9050 "CASSANDRA_PORT" >> "$TMP_ENV"
 find_free_port 10000 10010 "MINIO_PORT" >> "$TMP_ENV"
 find_free_port 9090 9100 "MINIO_CONSOLE_PORT" >> "$TMP_ENV"
 
-# Allocate MISP ports
+# Allocate OpenCTI ports
 echo "" >> "$TMP_ENV"
-echo "# MISP & Components" >> "$TMP_ENV"
-find_free_port 8080 8090 "MISP_HTTP_PORT" >> "$TMP_ENV"
-find_free_port 8440 8450 "MISP_HTTPS_PORT" >> "$TMP_ENV"
+echo "# OpenCTI" >> "$TMP_ENV"
+find_free_port 8080 8089 "OPENCTI_PORT" >> "$TMP_ENV"
+find_free_port 5672 5680 "OPENCTI_RABBITMQ_PORT" >> "$TMP_ENV"
+
+# Allocate OpenBAS ports
+echo "" >> "$TMP_ENV"
+echo "# OpenBAS" >> "$TMP_ENV"
+find_free_port 8090 8099 "OPENBAS_PORT" >> "$TMP_ENV"
+find_free_port 5681 5690 "OPENBAS_RABBITMQ_PORT" >> "$TMP_ENV"
 
 # Allocate Integration API port
 echo "" >> "$TMP_ENV"

@@ -78,28 +78,6 @@ server {
 }
 EOF
 
-# MISP proxy configuration
-cat > $CTI_APPS_CONFIG_DIR/misp.conf << 'EOF'
-server {
-    listen 443 ssl;
-    server_name misp.kasm.local;
-
-    # SSL configuration (uses Kasm's certificates)
-    include /opt/kasm/current/conf/nginx/ssl.conf;
-
-    location / {
-        proxy_pass http://misp-core:80;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-EOF
-
 # GRR proxy configuration
 cat > $CTI_APPS_CONFIG_DIR/grr.conf << 'EOF'
 server {
@@ -159,7 +137,6 @@ echo "Updating /etc/hosts file with entries for proxy domains..."
 ENTRIES=(
     "127.0.0.1 thehive.kasm.local"
     "127.0.0.1 cortex.kasm.local"
-    "127.0.0.1 misp.kasm.local"
     "127.0.0.1 grr.kasm.local"
     "127.0.0.1 portainer.kasm.local"
 )
@@ -190,7 +167,6 @@ echo ""
 echo "You can now access CTI applications through Kasm Workspaces at:"
 echo "  - TheHive:    https://thehive.kasm.local"
 echo "  - Cortex:     https://cortex.kasm.local"
-echo "  - MISP:       https://misp.kasm.local"
 echo "  - GRR:        https://grr.kasm.local"
 echo "  - Portainer:  https://portainer.kasm.local"
 echo ""

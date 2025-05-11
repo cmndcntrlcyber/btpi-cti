@@ -116,71 +116,6 @@ EOF
     echo "TheHive and Cortex integration setup completed"
 }
 
-# Setup MISP and TheHive integration
-setup_misp_thehive() {
-    echo "Setting up MISP and TheHive integration..."
-    
-    # Check if MISP and TheHive are running
-    if ! check_service "MISP" 8080 || ! check_service "TheHive" 9000; then
-        echo "Error: MISP or TheHive is not running"
-        echo "Please make sure both services are running before setting up the integration"
-        return 1
-    fi
-    
-    # Get MISP API key
-    MISP_API_KEY=$(get_api_key "MISP" "admin@admin.test" "admin" "http://localhost:8080/users/view/me")
-    
-    # Get TheHive API key
-    THEHIVE_API_KEY=$(get_api_key "TheHive" "admin" "password" "http://localhost:9000/api/user")
-    
-    # Update MISP configuration for TheHive integration
-    echo "Updating MISP configuration..."
-    
-    # Create MISP configuration file
-    mkdir -p "$CONFIG_DIR/misp"
-    cat > "$CONFIG_DIR/misp/config.php" <<EOF
-<?php
-// MISP configuration file
-
-// TheHive integration
-\$config['Plugin.Cortex_thehive_misp_enabled'] = true;
-\$config['Plugin.Cortex_thehive_misp_url'] = 'http://thehive:9000';
-\$config['Plugin.Cortex_thehive_misp_key'] = '$THEHIVE_API_KEY';
-?>
-EOF
-    
-    # Update TheHive configuration for MISP integration
-    echo "Updating TheHive configuration..."
-    
-    # Create or update TheHive configuration file
-    mkdir -p "$CONFIG_DIR/thehive"
-    cat >> "$CONFIG_DIR/thehive/application.conf" <<EOF
-
-# MISP integration
-play.modules.enabled += org.thehive.misp.connector.MispConnector
-
-misp {
-  interval = 1 hour
-  servers = [
-    {
-      name = "MISP"
-      url = "http://misp:8080"
-      auth {
-        type = "key"
-        key = "$MISP_API_KEY"
-      }
-      wsConfig.ssl.loose.acceptAnyCertificate = true
-    }
-  ]
-}
-EOF
-    
-    # Restart MISP and TheHive containers
-    echo "Restarting MISP and TheHive containers..."
-    docker-compose restart misp thehive
-    
-    echo "MISP and TheHive integration setup completed"
-}
 
 # Setup GRR and TheHive integration
 setup_grr_thehive() {
@@ -306,7 +241,7 @@ show_menu() {
     echo ""
     echo "Available integrations:"
     echo "  1) TheHive and Cortex"
-    echo "  2) MISP and TheHive"
+    echo "  2) [Removed]"
     echo "  3) GRR and TheHive"
     echo "  4) Setup all integrations"
     echo "  5) Exit"
@@ -318,14 +253,13 @@ show_menu() {
             setup_thehive_cortex
             ;;
         2)
-            setup_misp_thehive
+            echo "This integration option has been removed."
             ;;
         3)
             setup_grr_thehive
             ;;
         4)
             setup_thehive_cortex
-            setup_misp_thehive
             setup_grr_thehive
             ;;
         5)

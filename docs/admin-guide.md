@@ -8,8 +8,9 @@ The CTI platform consists of several containerized components running on Docker:
 
 - **TheHive**: Security incident response platform
 - **Cortex**: Observable analysis engine
-- **MISP**: Threat intelligence platform
 - **GRR**: Live forensics and incident response framework
+- **OpenCTI**: Threat intelligence platform
+- **OpenBAS**: Breach and attack simulation platform
 - **Kasm Workspaces**: Browser isolation and virtual desktop environment
 - **Portainer**: Container management interface
 
@@ -158,32 +159,6 @@ TheHive configuration files are located in the `configs/thehive/` directory. The
 
 Cortex configuration files are located in the `configs/cortex/` directory. The main configuration file is `application.conf`.
 
-### MISP Administration
-
-#### User Management
-
-1. Log in to MISP as an administrator
-2. Go to "Administration" > "Add User"
-3. Fill in the user details
-4. Set the user's role and permissions
-5. Click "Submit" to create the user
-
-#### Organization Management
-
-1. Go to "Administration" > "Add Organization"
-2. Fill in the organization details
-3. Click "Submit" to create the organization
-
-#### Sharing Configuration
-
-1. Go to "Administration" > "Server Settings" > "MISP Settings"
-2. Configure the sharing settings
-3. Click "Submit" to save the settings
-
-#### Configuration
-
-MISP configuration files are located in the `configs/misp/` directory.
-
 ### GRR Administration
 
 #### User Management
@@ -203,6 +178,56 @@ MISP configuration files are located in the `configs/misp/` directory.
 #### Configuration
 
 GRR configuration files are located in the `configs/grr/` directory.
+
+### OpenCTI Administration
+
+#### User Management
+
+1. Log in to OpenCTI as an administrator
+2. Go to "Settings" > "Security" > "Users"
+3. Click "Add" to create a new user
+4. Set the user's details, roles, and permissions
+5. Click "Create" to create the user
+
+#### Organization Management
+
+1. Go to "Settings" > "Security" > "Organizations"
+2. Click "Add" to create a new organization
+3. Set the organization details
+4. Click "Create" to create the organization
+
+#### Connector Management
+
+1. Go to "Data" > "Connectors"
+2. Enable or disable connectors as needed
+3. Configure connector settings by clicking on the connector
+4. Set API keys and other required parameters
+5. Click "Save" to apply the changes
+
+#### Configuration
+
+OpenCTI configuration is managed through environment variables in the docker-compose.yml file and through the web interface.
+
+### OpenBAS Administration
+
+#### User Management
+
+1. Log in to OpenBAS as an administrator
+2. Go to "Settings" > "Users"
+3. Click "Add User" to add a new user
+4. Set the user's details and permissions
+5. Click "Create" to create the user
+
+#### Scenario Management
+
+1. Go to "Scenarios"
+2. Click "Create" to add a new scenario
+3. Define the scenario steps and parameters
+4. Click "Save" to create the scenario
+
+#### Configuration
+
+OpenBAS configuration is managed through environment variables in the docker-compose.yml file and through the web interface.
 
 ### Kasm Workspaces Administration
 
@@ -255,21 +280,6 @@ sudo ./scripts/setup-integration.sh
 
 Select option 1 to set up TheHive and Cortex integration.
 
-### MISP and TheHive Integration
-
-The integration between MISP and TheHive allows:
-- Importing MISP events into TheHive as cases or alerts
-- Exporting TheHive cases to MISP as events
-
-To configure the integration:
-
-```bash
-# Run the integration setup script
-sudo ./scripts/setup-integration.sh
-```
-
-Select option 2 to set up MISP and TheHive integration.
-
 ### GRR and TheHive Integration
 
 The integration between GRR and TheHive allows forwarding GRR findings to TheHive as alerts.
@@ -282,6 +292,51 @@ sudo ./scripts/setup-integration.sh
 ```
 
 Select option 3 to set up GRR and TheHive integration.
+
+### OpenCTI and TheHive Integration
+
+The integration between OpenCTI and TheHive allows:
+- Importing TheHive cases into OpenCTI as reports
+- Exporting OpenCTI indicators to TheHive as observables
+
+To configure the integration:
+
+```bash
+# Run the integration setup script
+sudo ./scripts/setup-integration.sh
+```
+
+Select the option to set up OpenCTI and TheHive integration.
+
+### OpenCTI and Cortex Integration
+
+The integration between OpenCTI and Cortex allows:
+- Using Cortex analyzers to enrich data in OpenCTI
+- Automating analysis of indicators
+
+To configure the integration:
+
+```bash
+# Run the integration setup script
+sudo ./scripts/setup-integration.sh
+```
+
+Select the option to set up OpenCTI and Cortex integration.
+
+### OpenBAS Integration
+
+OpenBAS can be integrated with other components to:
+- Import threat intelligence from OpenCTI for simulation scenarios
+- Export simulation results to TheHive for incident response
+
+To configure the integration:
+
+```bash
+# Run the integration setup script
+sudo ./scripts/setup-integration.sh
+```
+
+Select the option to set up OpenBAS integration.
 
 ## Security Hardening
 

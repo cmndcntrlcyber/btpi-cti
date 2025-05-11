@@ -12,10 +12,15 @@ volumes:
   cassandra_data: # For TheHive
   elasticsearch_data: # For TheHive and Cortex
   minio_data: # For TheHive
-  misp_data: # For MISP
   portainer_data: # For Portainer
   kasm_data: # For Kasm Workspaces
   redis_data: # For Redis persistence
+  redis_opencti_data: # For OpenCTI Redis
+  redis_openbas_data: # For OpenBAS Redis
+  rabbitmq_opencti_data: # For OpenCTI RabbitMQ
+  rabbitmq_openbas_data: # For OpenBAS RabbitMQ
+  s3_opencti_data: # For OpenCTI S3
+  s3_openbas_data: # For OpenBAS S3
 
 services:
   # === Portainer for container management ===
@@ -419,108 +424,334 @@ services:
       retries: 3
       start_period: 60s
 
-  # === MISP Components ===
-  misp-core:
-    image: ghcr.io/misp/misp-docker/misp-core:latest
-    container_name: ${COMPOSE_PROJECT_NAME}_misp-core
-    hostname: misp
-    ports:
-      - "${MISP_HTTP_PORT}:80"
-      - "${MISP_HTTPS_PORT}:443"
-    environment:
-      - MYSQL_HOST=misp-db
-      - MYSQL_DATABASE=misp
-      - MYSQL_USER=misp
-      - MYSQL_PASSWORD_FILE=/run/secrets/misp_mysql_password
-      - MISP_ADMIN_EMAIL=admin@example.com
-      - MISP_ADMIN_PASSWORD_FILE=/run/secrets/misp_admin_password
-      - REDIS_FQDN=redis
-    volumes:
-      - misp_data:/var/www/MISP/app/files
-      - ./secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
-      - ./secrets/misp_admin_password:/run/secrets/misp_admin_password:ro
-    networks:
-      - default
-    profiles:
-      - misp-frontend
-      - frontends
-      - all
-    security_opt:
-      - no-new-privileges:true
-    depends_on:
-      - misp-db
-      - redis
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/users/login"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
-  misp-modules:
-    image: ghcr.io/misp/misp-docker/misp-modules:latest
-    container_name: ${COMPOSE_PROJECT_NAME}_misp-modules
-    restart: unless-stopped
-    environment:
-      - REDIS_BACKEND=redis
-    depends_on:
-      - redis
-      - misp-core
-    networks:
-      - default
-    profiles:
-      - misp-backend
-      - backends
-      - all
-    security_opt:
-      - no-new-privileges:true
-
-  misp-db:
-    image: mysql:8.0
-    container_name: ${COMPOSE_PROJECT_NAME}_misp-db
-    restart: unless-stopped
-    environment:
-      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/misp_root_password
-      - MYSQL_DATABASE=misp
-      - MYSQL_USER=misp
-      - MYSQL_PASSWORD_FILE=/run/secrets/misp_mysql_password
-    volumes:
-      - misp_data:/var/lib/mysql
-      - ./secrets/misp_root_password:/run/secrets/misp_root_password:ro
-      - ./secrets/misp_mysql_password:/run/secrets/misp_mysql_password:ro
-    networks:
-      - default
-    profiles:
-      - misp-backend
-      - databases
-      - all
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "misp", "-p$$(cat /run/secrets/misp_mysql_password)"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:alpine
-    container_name: ${COMPOSE_PROJECT_NAME}_redis
+  # OpenCTI Components
+  redis-opencti:
+    image: redis:7.0.12
+    container_name: ${COMPOSE_PROJECT_NAME}_redis_opencti
     restart: unless-stopped
     volumes:
-      - redis_data:/data
+      - redis_opencti_data:/data
     networks:
       - default
     profiles:
-      - misp-backend
-      - storage
+      - opencti
       - all
     security_opt:
       - no-new-privileges:true
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  rabbitmq-opencti:
+    image: rabbitmq:3.12-management
+    container_name: ${COMPOSE_PROJECT_NAME}_rabbitmq_opencti
+    environment:
+      - RABBITMQ_DEFAULT_USER_FILE=/run/secrets/rabbitmq_user
+      - RABBITMQ_DEFAULT_PASS_FILE=/run/secrets/rabbitmq_password
+    volumes:
+      - rabbitmq_opencti_data:/var/lib/rabbitmq
+      - ./secrets/rabbitmq_user:/run/secrets/rabbitmq_user:ro
+      - ./secrets/rabbitmq_password:/run/secrets/rabbitmq_password:ro
+    ports:
+      - "${OPENCTI_RABBITMQ_PORT}:5672"
+    restart: unless-stopped
+    networks:
+      - default
+    profiles:
+      - opencti
+      - all
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  opencti:
+    image: opencti/platform:5.9.6
+    container_name: ${COMPOSE_PROJECT_NAME}_opencti
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=8096
+      - APP__PORT=8080
+      - APP__BASE_URL=http://localhost:${OPENCTI_PORT}
+      - APP__ADMIN__EMAIL=admin@opencti.io
+      - APP__ADMIN__PASSWORD_FILE=/run/secrets/opencti_admin_password
+      - APP__ADMIN__TOKEN_FILE=/run/secrets/opencti_admin_token
+      - APP__APP_LOGS__LOGS_LEVEL=error
+      - REDIS__HOSTNAME=redis_opencti
+      - REDIS__PORT=6379
+      - ELASTICSEARCH__URL=http://elasticsearch:9200
+      - MINIO__ENDPOINT=minio
+      - MINIO__PORT=9000
+      - MINIO__USE_SSL=false
+      - MINIO__ACCESS_KEY_FILE=/run/secrets/minio_root_user
+      - MINIO__SECRET_KEY_FILE=/run/secrets/minio_root_password
+      - RABBITMQ__HOSTNAME=rabbitmq_opencti
+      - RABBITMQ__PORT=5672
+      - RABBITMQ__USERNAME_FILE=/run/secrets/rabbitmq_user
+      - RABBITMQ__PASSWORD_FILE=/run/secrets/rabbitmq_password
+      - SMTP__HOSTNAME=localhost
+      - SMTP__PORT=25
+      - PROVIDERS__LOCAL__STRATEGY=LocalStrategy
+    ports:
+      - "${OPENCTI_PORT}:8080"
+    volumes:
+      - ./secrets/opencti_admin_password:/run/secrets/opencti_admin_password:ro
+      - ./secrets/opencti_admin_token:/run/secrets/opencti_admin_token:ro
+      - ./secrets/minio_root_user:/run/secrets/minio_root_user:ro
+      - ./secrets/minio_root_password:/run/secrets/minio_root_password:ro
+      - ./secrets/rabbitmq_user:/run/secrets/rabbitmq_user:ro
+      - ./secrets/rabbitmq_password:/run/secrets/rabbitmq_password:ro
+    depends_on:
+      - redis-opencti
+      - rabbitmq-opencti
+      - elasticsearch
+      - minio
+    restart: unless-stopped
+    networks:
+      - default
+    profiles:
+      - opencti
+      - all
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/graphql"]
+      interval: 30s
+      timeout: 10s
       retries: 5
+      start_period: 60s
+
+  worker-opencti:
+    image: opencti/worker:5.9.6
+    container_name: ${COMPOSE_PROJECT_NAME}_worker_opencti
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN_FILE=/run/secrets/opencti_admin_token
+      - WORKER_LOG_LEVEL=error
+    volumes:
+      - ./secrets/opencti_admin_token:/run/secrets/opencti_admin_token:ro
+    depends_on:
+      - opencti
+    deploy:
+      mode: replicated
+      replicas: 3
+    restart: unless-stopped
+    networks:
+      - default
+    profiles:
+      - opencti
+      - all
+    security_opt:
+      - no-new-privileges:true
+
+  connector-export-file-stix:
+    image: opencti/connector-export-file-stix:5.9.6
+    container_name: ${COMPOSE_PROJECT_NAME}_connector-export-file-stix
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN_FILE=/run/secrets/opencti_admin_token
+      - CONNECTOR_ID_FILE=/run/secrets/opencti_connector_export_file_stix_id
+      - CONNECTOR_TYPE=INTERNAL_EXPORT_FILE
+      - CONNECTOR_NAME=ExportFileStix2
+      - CONNECTOR_SCOPE=application/json
+      - CONNECTOR_CONFIDENCE_LEVEL=15
+      - CONNECTOR_LOG_LEVEL=info
+    volumes:
+      - ./secrets/opencti_admin_token:/run/secrets/opencti_admin_token:ro
+      - ./secrets/opencti_connector_export_file_stix_id:/run/secrets/opencti_connector_export_file_stix_id:ro
+    restart: unless-stopped
+    depends_on:
+      - opencti
+    networks:
+      - default
+    profiles:
+      - opencti
+      - all
+    security_opt:
+      - no-new-privileges:true
+
+  connector-export-file-csv:
+    image: opencti/connector-export-file-csv:5.9.6
+    container_name: ${COMPOSE_PROJECT_NAME}_connector-export-file-csv
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN_FILE=/run/secrets/opencti_admin_token
+      - CONNECTOR_ID_FILE=/run/secrets/opencti_connector_export_file_csv_id
+      - CONNECTOR_TYPE=INTERNAL_EXPORT_FILE
+      - CONNECTOR_NAME=ExportFileCsv
+      - CONNECTOR_SCOPE=text/csv
+      - CONNECTOR_CONFIDENCE_LEVEL=15
+      - CONNECTOR_LOG_LEVEL=info
+    volumes:
+      - ./secrets/opencti_admin_token:/run/secrets/opencti_admin_token:ro
+      - ./secrets/opencti_connector_export_file_csv_id:/run/secrets/opencti_connector_export_file_csv_id:ro
+    restart: unless-stopped
+    depends_on:
+      - opencti
+    networks:
+      - default
+    profiles:
+      - opencti
+      - all
+    security_opt:
+      - no-new-privileges:true
+
+  connector-import-file-stix:
+    image: opencti/connector-import-file-stix:5.9.6
+    container_name: ${COMPOSE_PROJECT_NAME}_connector-import-file-stix
+    environment:
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN_FILE=/run/secrets/opencti_admin_token
+      - CONNECTOR_ID_FILE=/run/secrets/opencti_connector_import_file_stix_id
+      - CONNECTOR_TYPE=INTERNAL_IMPORT_FILE
+      - CONNECTOR_NAME=ImportFileStix
+      - CONNECTOR_VALIDATE_BEFORE_IMPORT=true
+      - CONNECTOR_SCOPE=application/json,text/xml
+      - CONNECTOR_AUTO=true
+      - CONNECTOR_CONFIDENCE_LEVEL=15
+      - CONNECTOR_LOG_LEVEL=info
+    volumes:
+      - ./secrets/opencti_admin_token:/run/secrets/opencti_admin_token:ro
+      - ./secrets/opencti_connector_import_file_stix_id:/run/secrets/opencti_connector_import_file_stix_id:ro
+    restart: unless-stopped
+    depends_on:
+      - opencti
+    networks:
+      - default
+    profiles:
+      - opencti
+      - all
+    security_opt:
+      - no-new-privileges:true
+
+  # OpenBAS Components
+  redis-openbas:
+    image: redis:7.0.12
+    container_name: ${COMPOSE_PROJECT_NAME}_redis_openbas
+    restart: unless-stopped
+    volumes:
+      - redis_openbas_data:/data
+    networks:
+      - default
+    profiles:
+      - openbas
+      - all
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  rabbitmq-openbas:
+    image: rabbitmq:3.12-management
+    container_name: ${COMPOSE_PROJECT_NAME}_rabbitmq_openbas
+    environment:
+      - RABBITMQ_DEFAULT_USER_FILE=/run/secrets/rabbitmq_user
+      - RABBITMQ_DEFAULT_PASS_FILE=/run/secrets/rabbitmq_password
+    volumes:
+      - rabbitmq_openbas_data:/var/lib/rabbitmq
+      - ./secrets/rabbitmq_user:/run/secrets/rabbitmq_user:ro
+      - ./secrets/rabbitmq_password:/run/secrets/rabbitmq_password:ro
+    ports:
+      - "${OPENBAS_RABBITMQ_PORT}:5672"
+    restart: unless-stopped
+    networks:
+      - default
+    profiles:
+      - openbas
+      - all
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  openbas:
+    image: filigran/openbas:1.0.0
+    container_name: ${COMPOSE_PROJECT_NAME}_openbas
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=8096
+      - APP__PORT=8080
+      - APP__BASE_URL=http://localhost:${OPENBAS_PORT}
+      - APP__ADMIN__EMAIL=admin@openbas.io
+      - APP__ADMIN__PASSWORD_FILE=/run/secrets/openbas_admin_password
+      - APP__ADMIN__TOKEN_FILE=/run/secrets/openbas_admin_token
+      - APP__APP_LOGS__LOGS_LEVEL=error
+      - REDIS__HOSTNAME=redis_openbas
+      - REDIS__PORT=6379
+      - ELASTICSEARCH__URL=http://elasticsearch:9200
+      - MINIO__ENDPOINT=minio
+      - MINIO__PORT=9000
+      - MINIO__USE_SSL=false
+      - MINIO__ACCESS_KEY_FILE=/run/secrets/minio_root_user
+      - MINIO__SECRET_KEY_FILE=/run/secrets/minio_root_password
+      - RABBITMQ__HOSTNAME=rabbitmq_openbas
+      - RABBITMQ__PORT=5672
+      - RABBITMQ__USERNAME_FILE=/run/secrets/rabbitmq_user
+      - RABBITMQ__PASSWORD_FILE=/run/secrets/rabbitmq_password
+      - SMTP__HOSTNAME=localhost
+      - SMTP__PORT=25
+      - PROVIDERS__LOCAL__STRATEGY=LocalStrategy
+    ports:
+      - "${OPENBAS_PORT}:8080"
+    volumes:
+      - ./secrets/openbas_admin_password:/run/secrets/openbas_admin_password:ro
+      - ./secrets/openbas_admin_token:/run/secrets/openbas_admin_token:ro
+      - ./secrets/minio_root_user:/run/secrets/minio_root_user:ro
+      - ./secrets/minio_root_password:/run/secrets/minio_root_password:ro
+      - ./secrets/rabbitmq_user:/run/secrets/rabbitmq_user:ro
+      - ./secrets/rabbitmq_password:/run/secrets/rabbitmq_password:ro
+    depends_on:
+      - redis-openbas
+      - rabbitmq-openbas
+      - elasticsearch
+      - minio
+    restart: unless-stopped
+    networks:
+      - default
+    profiles:
+      - openbas
+      - all
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/graphql"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  worker-openbas:
+    image: filigran/openbas-worker:1.0.0
+    container_name: ${COMPOSE_PROJECT_NAME}_worker_openbas
+    environment:
+      - OPENBAS_URL=http://openbas:8080
+      - OPENBAS_TOKEN_FILE=/run/secrets/openbas_admin_token
+      - WORKER_LOG_LEVEL=error
+    volumes:
+      - ./secrets/openbas_admin_token:/run/secrets/openbas_admin_token:ro
+    depends_on:
+      - openbas
+    deploy:
+      mode: replicated
+      replicas: 3
+    restart: unless-stopped
+    networks:
+      - default
+    profiles:
+      - openbas
+      - all
+    security_opt:
+      - no-new-privileges:true
 
   # Integration helper
   integration-api:
@@ -561,9 +792,25 @@ secrets:
     file: ./secrets/thehive_secret
   cortex_api_key:
     file: ./secrets/cortex_api_key
-  misp_root_password:
-    file: ./secrets/misp_root_password
-  misp_mysql_password:
-    file: ./secrets/misp_mysql_password
-  misp_admin_password:
-    file: ./secrets/misp_admin_password
+  opencti_admin_password:
+    file: ./secrets/opencti_admin_password
+  opencti_admin_token:
+    file: ./secrets/opencti_admin_token
+  openbas_admin_password:
+    file: ./secrets/openbas_admin_password
+  openbas_admin_token:
+    file: ./secrets/openbas_admin_token
+  rabbitmq_user:
+    file: ./secrets/rabbitmq_user
+  rabbitmq_password:
+    file: ./secrets/rabbitmq_password
+  opencti_connector_export_file_stix_id:
+    file: ./secrets/opencti_connector_export_file_stix_id
+  opencti_connector_export_file_csv_id:
+    file: ./secrets/opencti_connector_export_file_csv_id
+  opencti_connector_export_file_txt_id:
+    file: ./secrets/opencti_connector_export_file_txt_id
+  opencti_connector_import_file_stix_id:
+    file: ./secrets/opencti_connector_import_file_stix_id
+  opencti_connector_import_document_id:
+    file: ./secrets/opencti_connector_import_document_id

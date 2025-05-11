@@ -44,7 +44,6 @@ steps:
     commands:
       - vault secrets enable -path=secrets kv || echo "KV already enabled"
       - vault kv put secrets/mysql password="${MYSQL_PASSWORD}" root_password="${MYSQL_ROOT_PASSWORD}"
-      - vault kv put secrets/misp admin_password="${MISP_ADMIN_PASSWORD}" mysql_password="${MISP_MYSQL_PASSWORD}"
       - vault kv put secrets/cortex api_key="${CORTEX_API_KEY}" 
       - vault kv put secrets/elastic password="${ELASTIC_PASSWORD}"
       - vault kv put secrets/thehive secret="${THEHIVE_SECRET}"
@@ -118,7 +117,6 @@ steps:
       - "# Get secrets from Vault"
       - export MYSQL_PASSWORD=$(vault kv get -field=password secrets/mysql)
       - export MYSQL_ROOT_PASSWORD=$(vault kv get -field=root_password secrets/mysql)
-      - export MISP_ADMIN_PASSWORD=$(vault kv get -field=admin_password secrets/misp)
       - export CORTEX_API_KEY=$(vault kv get -field=api_key secrets/cortex)
       - export ELASTIC_PASSWORD=$(vault kv get -field=password secrets/elastic)
       - export THEHIVE_SECRET=$(vault kv get -field=secret secrets/thehive)
@@ -167,7 +165,6 @@ steps:
         client = hvac.Client(url=os.environ['VAULT_ADDR'], token=os.environ['VAULT_TOKEN']);
         secrets = {};
         secrets.update(client.secrets.kv.read_secret_version(path='mysql')['data']['data']);
-        secrets.update(client.secrets.kv.read_secret_version(path='misp')['data']['data']);
         secrets.update(client.secrets.kv.read_secret_version(path='cortex')['data']['data']);
         secrets.update(client.secrets.kv.read_secret_version(path='elastic')['data']['data']);
         secrets.update(client.secrets.kv.read_secret_version(path='thehive')['data']['data']);

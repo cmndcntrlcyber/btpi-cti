@@ -20,7 +20,6 @@ Components include:
 * GRR Rapid Response: Live forensics and incident response framework
 * TheHive: Security incident response platform
 * Cortex: Observable analysis engine
-* MISP: Threat intelligence platform
 * Kasm Workspaces: Browser isolation and virtual desktop environment
 * Portainer: Container management interface
 
@@ -64,7 +63,6 @@ ln -sf /opt/btpi-cti/scripts/update.sh %{buildroot}%{_bindir}/cti-update
 %config(noreplace) /opt/btpi-cti/config.env
 %config(noreplace) /opt/btpi-cti/configs/cortex/application.conf
 %config(noreplace) /opt/btpi-cti/configs/thehive/application.conf
-%config(noreplace) /opt/btpi-cti/configs/misp/config.php
 %config(noreplace) /opt/btpi-cti/configs/grr/server.local.yaml
 %config(noreplace) /opt/btpi-cti/configs/portainer/portainer.yml
 

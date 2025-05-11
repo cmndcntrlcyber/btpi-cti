@@ -8,8 +8,9 @@ This guide provides solutions for common issues that may arise when using the CT
 - [Docker and Container Issues](#docker-and-container-issues)
 - [TheHive Issues](#thehive-issues)
 - [Cortex Issues](#cortex-issues)
-- [MISP Issues](#misp-issues)
 - [GRR Issues](#grr-issues)
+- [OpenCTI Issues](#opencti-issues)
+- [OpenBAS Issues](#openbas-issues)
 - [Kasm Workspaces Issues](#kasm-workspaces-issues)
 - [Integration Issues](#integration-issues)
 - [Performance Issues](#performance-issues)
@@ -299,53 +300,6 @@ This guide provides solutions for common issues that may arise when using the CT
    curl -H "Authorization: Bearer <api_key>" -X POST http://localhost:9001/api/analyzer/<analyzer_id>/restart
    ```
 
-## MISP Issues
-
-### MISP Not Starting
-
-**Symptoms:**
-- MISP container exits shortly after starting
-- Error messages in logs about database or configuration
-
-**Solutions:**
-1. Check MISP logs:
-   ```bash
-   docker-compose logs misp
-   ```
-
-2. Check MySQL status:
-   ```bash
-   docker-compose logs mysql
-   ```
-
-3. Reset MISP database (caution: this will delete all data):
-   ```bash
-   docker-compose down
-   docker volume rm cti_misp_db
-   docker-compose up -d
-   ```
-
-### Synchronization Issues
-
-**Symptoms:**
-- Events not synchronizing between MISP instances
-- Error messages about synchronization
-
-**Solutions:**
-1. Check synchronization settings in MISP:
-   - Go to "Synchronisation" > "List Servers"
-   - Verify server settings and credentials
-
-2. Check if the remote server is accessible:
-   ```bash
-   curl -I <remote_misp_url>
-   ```
-
-3. Check MISP logs for synchronization errors:
-   ```bash
-   docker-compose logs misp | grep -i sync
-   ```
-
 ## GRR Issues
 
 ### GRR Server Not Starting
@@ -395,6 +349,169 @@ This guide provides solutions for common issues that may arise when using the CT
    ```
 
 4. Check firewall settings to ensure the GRR client can communicate with the server.
+
+## OpenCTI Issues
+
+### OpenCTI Not Starting
+
+**Symptoms:**
+- OpenCTI container exits shortly after starting
+- Error messages in logs about Redis, Elasticsearch, or RabbitMQ
+
+**Solutions:**
+1. Check OpenCTI logs:
+   ```bash
+   docker-compose logs opencti
+   ```
+
+2. Check Redis status:
+   ```bash
+   docker-compose logs redis-opencti
+   ```
+
+3. Check RabbitMQ status:
+   ```bash
+   docker-compose logs rabbitmq-opencti
+   ```
+
+4. Check Elasticsearch status:
+   ```bash
+   curl -X GET "localhost:9200/_cluster/health?pretty"
+   ```
+
+5. Reset OpenCTI (caution: this will delete all data):
+   ```bash
+   docker-compose down
+   docker volume rm redis_opencti_data rabbitmq_opencti_data s3_opencti_data
+   docker-compose up -d
+   ```
+
+### Connector Issues
+
+**Symptoms:**
+- Connectors fail to run
+- Data import/export not working
+
+**Solutions:**
+1. Check connector logs:
+   ```bash
+   docker-compose logs connector-export-file-stix
+   docker-compose logs connector-import-file-stix
+   ```
+
+2. Verify connector configuration in the OpenCTI web interface:
+   - Go to Data > Connectors
+   - Check if the connector is enabled
+   - Verify the connector configuration
+
+3. Restart the connector:
+   ```bash
+   docker-compose restart connector-export-file-stix
+   ```
+
+4. Check if the connector ID is correctly set in the environment variables:
+   ```bash
+   cat ./secrets/opencti_connector_export_file_stix_id
+   ```
+
+### Authentication Issues
+
+**Symptoms:**
+- Cannot log in to OpenCTI
+- "Invalid credentials" error
+
+**Solutions:**
+1. Check if the admin password is correctly set:
+   ```bash
+   cat ./secrets/opencti_admin_password
+   ```
+
+2. Reset the admin password:
+   ```bash
+   echo "newpassword" > ./secrets/opencti_admin_password
+   docker-compose restart opencti
+   ```
+
+3. Check if the admin token is correctly set:
+   ```bash
+   cat ./secrets/opencti_admin_token
+   ```
+
+## OpenBAS Issues
+
+### OpenBAS Not Starting
+
+**Symptoms:**
+- OpenBAS container exits shortly after starting
+- Error messages in logs about Redis, Elasticsearch, or RabbitMQ
+
+**Solutions:**
+1. Check OpenBAS logs:
+   ```bash
+   docker-compose logs openbas
+   ```
+
+2. Check Redis status:
+   ```bash
+   docker-compose logs redis-openbas
+   ```
+
+3. Check RabbitMQ status:
+   ```bash
+   docker-compose logs rabbitmq-openbas
+   ```
+
+4. Check Elasticsearch status:
+   ```bash
+   curl -X GET "localhost:9200/_cluster/health?pretty"
+   ```
+
+5. Reset OpenBAS (caution: this will delete all data):
+   ```bash
+   docker-compose down
+   docker volume rm redis_openbas_data rabbitmq_openbas_data s3_openbas_data
+   docker-compose up -d
+   ```
+
+### Worker Issues
+
+**Symptoms:**
+- Scenarios not executing
+- Tasks stuck in pending state
+
+**Solutions:**
+1. Check worker logs:
+   ```bash
+   docker-compose logs worker-openbas
+   ```
+
+2. Restart the worker:
+   ```bash
+   docker-compose restart worker-openbas
+   ```
+
+3. Check if the admin token is correctly set:
+   ```bash
+   cat ./secrets/openbas_admin_token
+   ```
+
+### Authentication Issues
+
+**Symptoms:**
+- Cannot log in to OpenBAS
+- "Invalid credentials" error
+
+**Solutions:**
+1. Check if the admin password is correctly set:
+   ```bash
+   cat ./secrets/openbas_admin_password
+   ```
+
+2. Reset the admin password:
+   ```bash
+   echo "newpassword" > ./secrets/openbas_admin_password
+   docker-compose restart openbas
+   ```
 
 ## Kasm Workspaces Issues
 
@@ -474,34 +591,6 @@ This guide provides solutions for common issues that may arise when using the CT
    ```
    Select option 1 to set up TheHive and Cortex integration.
 
-### MISP-TheHive Integration Issues
-
-**Symptoms:**
-- Cannot import MISP events into TheHive
-- Cannot export TheHive cases to MISP
-
-**Solutions:**
-1. Check if MISP API key is correctly configured in TheHive:
-   ```bash
-   docker exec -it thehive cat /etc/thehive/application.conf | grep misp
-   ```
-
-2. Verify MISP API key:
-   ```bash
-   curl -H "Authorization: <misp_api_key>" http://localhost:8080/events/index
-   ```
-
-3. Check if TheHive API key is correctly configured in MISP:
-   ```bash
-   docker exec -it misp cat /var/www/MISP/app/Config/config.php | grep thehive
-   ```
-
-4. Run the integration setup script:
-   ```bash
-   sudo ./scripts/setup-integration.sh
-   ```
-   Select option 2 to set up MISP and TheHive integration.
-
 ### GRR-TheHive Integration Issues
 
 **Symptoms:**
@@ -524,6 +613,67 @@ This guide provides solutions for common issues that may arise when using the CT
    sudo ./scripts/setup-integration.sh
    ```
    Select option 3 to set up GRR and TheHive integration.
+
+### OpenCTI-TheHive Integration Issues
+
+**Symptoms:**
+- Cannot import TheHive cases into OpenCTI
+- Cannot export OpenCTI indicators to TheHive
+
+**Solutions:**
+1. Check if TheHive API key is correctly configured in OpenCTI:
+   - Go to Settings > Integrations > TheHive
+   - Verify the API key and URL
+
+2. Check if OpenCTI API key is correctly configured in TheHive:
+   ```bash
+   docker exec -it thehive cat /etc/thehive/application.conf | grep opencti
+   ```
+
+3. Run the integration setup script:
+   ```bash
+   sudo ./scripts/setup-integration.sh
+   ```
+   Select the option to set up OpenCTI and TheHive integration.
+
+### OpenCTI-Cortex Integration Issues
+
+**Symptoms:**
+- Cannot run Cortex analyzers from OpenCTI
+- "Analyzer not found" or "Authentication failed" errors
+
+**Solutions:**
+1. Check if Cortex API key is correctly configured in OpenCTI:
+   - Go to Settings > Integrations > Cortex
+   - Verify the API key and URL
+
+2. Verify Cortex API key:
+   ```bash
+   curl -H "Authorization: Bearer <cortex_api_key>" http://localhost:9001/api/analyzer
+   ```
+
+3. Run the integration setup script:
+   ```bash
+   sudo ./scripts/setup-integration.sh
+   ```
+   Select the option to set up OpenCTI and Cortex integration.
+
+### OpenBAS Integration Issues
+
+**Symptoms:**
+- Cannot import threat intelligence from OpenCTI
+- Cannot export simulation results to TheHive
+
+**Solutions:**
+1. Check if API keys are correctly configured in OpenBAS:
+   - Go to Settings > Integrations
+   - Verify the API keys and URLs
+
+2. Run the integration setup script:
+   ```bash
+   sudo ./scripts/setup-integration.sh
+   ```
+   Select the option to set up OpenBAS integration.
 
 ## Performance Issues
 
@@ -588,7 +738,7 @@ This guide provides solutions for common issues that may arise when using the CT
    # For TheHive, delete old cases
    curl -H "Authorization: Bearer <api_key>" -X POST http://localhost:9000/api/case/_search -d '{"query": {"range": {"_createdAt": {"lt": "now-90d"}}}}' | jq -r '.[]._id' | xargs -I {} curl -H "Authorization: Bearer <api_key>" -X DELETE http://localhost:9000/api/case/{}
    
-   # For MISP, delete old events through the web interface
+   # Delete old data through the web interface
    ```
 
 ## Backup and Restore Issues
@@ -718,8 +868,9 @@ If you encounter issues not covered in this guide, refer to the following resour
 
 - [TheHive Documentation](https://github.com/TheHive-Project/TheHiveDocs)
 - [Cortex Documentation](https://github.com/TheHive-Project/CortexDocs)
-- [MISP Documentation](https://www.misp-project.org/documentation/)
 - [GRR Documentation](https://grr-doc.readthedocs.io/)
+- [OpenCTI Documentation](https://docs.opencti.io/)
+- [OpenBAS Documentation](https://docs.openbas.io/)
 - [Kasm Workspaces Documentation](https://kasmweb.com/docs/latest/index.html)
 - [Docker Documentation](https://docs.docker.com/)
 

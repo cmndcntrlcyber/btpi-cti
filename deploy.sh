@@ -39,7 +39,8 @@ function print_usage {
   echo "  --management  Deploy only management services"
   echo "  --thehive     Deploy TheHive, Cortex, and dependencies"
   echo "  --grr         Deploy GRR services"
-  echo "  --misp        Deploy MISP services"
+  echo "  --opencti     Deploy OpenCTI services"
+  echo "  --openbas     Deploy OpenBAS services"
   echo "  --clean       Force clean installation (reinitialize volumes)"
   echo "  --help        Show this help message"
 }
@@ -75,9 +76,13 @@ for arg in "$@"; do
       ALL_SERVICES=false
       SPECIFIC_PROFILE="grr-frontend grr-backend"
       ;;
-    --misp)
+    --opencti)
       ALL_SERVICES=false
-      SPECIFIC_PROFILE="misp-frontend misp-backend"
+      SPECIFIC_PROFILE="opencti"
+      ;;
+    --openbas)
+      ALL_SERVICES=false
+      SPECIFIC_PROFILE="openbas"
       ;;
     --clean)
       CLEAN_INSTALL=true
@@ -99,7 +104,7 @@ echo "BTPI-CTI Cyber Threat Intelligence Platform"
 echo "This script will deploy the following services:"
 
 if [ "$ALL_SERVICES" = true ]; then
-  echo "  - All services (Portainer, GRR, TheHive, MISP, Integration API)"
+  echo "  - All services (Portainer, GRR, TheHive, OpenCTI, OpenBAS, Integration API)"
   PROFILE_ARG="--profile all"
 else
   echo "  - Selected profile(s): $SPECIFIC_PROFILE"
@@ -161,20 +166,49 @@ if [ ! -f secrets/cortex_api_key ]; then
   openssl rand -hex 32 > secrets/cortex_api_key
 fi
 
-if [ ! -f secrets/misp_root_password ]; then
-  echo "Creating random MISP root password..."
-  openssl rand -base64 16 > secrets/misp_root_password
+# OpenCTI and OpenBAS secrets
+if [ ! -f secrets/opencti_admin_password ]; then
+  echo "Creating OpenCTI admin password..."
+  echo "changeme" > secrets/opencti_admin_password
+  echo -e "${YELLOW}⚠${NC} Please change the OpenCTI admin password after first login"
 fi
 
-if [ ! -f secrets/misp_mysql_password ]; then
-  echo "Creating random MISP MySQL password..."
-  openssl rand -base64 16 > secrets/misp_mysql_password
+if [ ! -f secrets/opencti_admin_token ]; then
+  echo "Creating random OpenCTI admin token..."
+  openssl rand -hex 32 > secrets/opencti_admin_token
 fi
 
-if [ ! -f secrets/misp_admin_password ]; then
-  echo "Creating random MISP admin password..."
-  openssl rand -base64 12 > secrets/misp_admin_password
+if [ ! -f secrets/openbas_admin_password ]; then
+  echo "Creating OpenBAS admin password..."
+  echo "changeme" > secrets/openbas_admin_password
+  echo -e "${YELLOW}⚠${NC} Please change the OpenBAS admin password after first login"
 fi
+
+if [ ! -f secrets/openbas_admin_token ]; then
+  echo "Creating random OpenBAS admin token..."
+  openssl rand -hex 32 > secrets/openbas_admin_token
+fi
+
+if [ ! -f secrets/rabbitmq_user ]; then
+  echo "Creating RabbitMQ user..."
+  echo "opencti" > secrets/rabbitmq_user
+fi
+
+if [ ! -f secrets/rabbitmq_password ]; then
+  echo "Creating random RabbitMQ password..."
+  openssl rand -base64 16 > secrets/rabbitmq_password
+fi
+
+# Generate UUIDs for OpenCTI connectors if they don't exist
+if [ ! -f secrets/opencti_connector_export_file_stix_id ]; then
+  echo "Creating OpenCTI connector IDs..."
+  uuidgen > secrets/opencti_connector_export_file_stix_id
+  uuidgen > secrets/opencti_connector_export_file_csv_id
+  uuidgen > secrets/opencti_connector_export_file_txt_id
+  uuidgen > secrets/opencti_connector_import_file_stix_id
+  uuidgen > secrets/opencti_connector_import_document_id
+fi
+
 
 # Create Docker network
 echo -e "\n${BLUE}Step 1: Creating Docker network...${NC}"
@@ -215,12 +249,9 @@ echo -e "  - ${GREEN}Portainer:${NC} http://<your-ip>:${PORTAINER_PORT}"
 echo -e "  - ${GREEN}GRR Admin UI:${NC} http://<your-ip>:${GRR_ADMIN_UI_PORT}"
 echo -e "  - ${GREEN}TheHive:${NC} http://<your-ip>:${THEHIVE_PORT}"
 echo -e "  - ${GREEN}Cortex:${NC} http://<your-ip>:${CORTEX_PORT}" 
-echo -e "  - ${GREEN}MISP:${NC} http://<your-ip>:${MISP_HTTP_PORT}"
+echo -e "  - ${GREEN}OpenCTI:${NC} http://<your-ip>:${OPENCTI_PORT}"
+echo -e "  - ${GREEN}OpenBAS:${NC} http://<your-ip>:${OPENBAS_PORT}"
 echo -e "  - ${GREEN}Integration API:${NC} http://<your-ip>:${INTEGRATION_API_PORT}"
-echo ""
-echo "MISP default credentials:"
-echo "  - Username: admin@admin.test"
-echo "  - Password: $(cat secrets/misp_admin_password 2>/dev/null || echo "Check secrets/misp_admin_password file")"
 echo ""
 echo -e "${YELLOW}Note:${NC} Some services may still be initializing. Check status with:"
 echo "  docker ps"
@@ -235,8 +266,8 @@ echo "  - thehive-frontend : TheHive & Cortex"
 echo "  - thehive-backend  : TheHive databases and dependencies" 
 echo "  - grr-frontend     : GRR Admin UI"
 echo "  - grr-backend      : GRR backend services"
-echo "  - misp-frontend    : MISP frontend"
-echo "  - misp-backend     : MISP databases and dependencies"
+echo "  - opencti          : OpenCTI platform and dependencies"
+echo "  - openbas          : OpenBAS platform and dependencies"
 echo ""
 echo "Example for deploying only frontend services:"
 echo "  sudo ./deploy.sh --frontends"

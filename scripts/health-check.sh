@@ -183,14 +183,6 @@ if [ "$CHECK_SERVICES" = true ]; then
         send_alert "CTI Health Alert: Cortex Service Down" "Cortex service on $(hostname) is not responding"
     fi
     
-    # Check MISP
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 | grep -q "200\|302"; then
-        print_status "OK" "MISP service is responding"
-    else
-        print_status "ERROR" "MISP service is not responding"
-        send_alert "CTI Health Alert: MISP Service Down" "MISP service on $(hostname) is not responding"
-    fi
-    
     # Check GRR
     if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 | grep -q "200\|302"; then
         print_status "OK" "GRR service is responding"
